@@ -645,6 +645,7 @@ class UsuarioListView(AdminRequiredMixin, ListView):
     def get_queryset(self):
         return (
             User.objects
+            .filter(is_active=True)
             .prefetch_related("groups", "password_policy")
             .order_by("username")
         )
