@@ -30,27 +30,24 @@ from .forms import (
     UsuarioCreateForm, UsuarioEditForm,
 )
 from .mixins import NivelMixin, SupervisorRequiredMixin, AdminRequiredMixin, get_user_profile
+from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
+from django.contrib.contenttypes.models import ContentType
+import logging
 
 logger = logging.getLogger("core")
 
 
-# ─────────────────────────────────────────────────────────
-# LOGS
-# ─────────────────────────────────────────────────────────
 def log_action(user, obj, action_flag, message=""):
-    """Register action in Django admin log."""
-    try:
-        ct = ContentType.objects.get_for_model(obj)
-        LogEntry.objects.log_action(
-            user_id=user.pk,
-            content_type_id=ct.pk,
-            object_id=obj.pk,
-            object_repr=str(obj)[:200],
-            action_flag=action_flag,
-            change_message=message,
-        )
-    except Exception as exc:
-        logger.warning("log_action failed: %s", exc)
+    ct = ContentType.objects.get_for_model(obj)
+
+    LogEntry.objects.log_action(
+        user_id=user.pk,
+        content_type_id=ct.pk,
+        object_id=obj.pk,
+        object_repr=str(obj)[:200],
+        action_flag=action_flag,
+        change_message=message,
+    )
 
 
 # ─────────────────────────────────────────────────────────

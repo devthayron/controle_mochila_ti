@@ -61,6 +61,7 @@ class Loja(models.Model):
 class Item(models.Model):
     nome       = models.CharField(max_length=100, unique=True)
     criado_em  = models.DateTimeField(auto_now_add=True)
+    
 
     class Meta:
         ordering            = ["nome"]
