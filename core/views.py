@@ -32,7 +32,7 @@ from .forms import (
 )
 from .mixins import AdminRequiredMixin, NivelMixin, PermContextMixin, SupervisorRequiredMixin
 from .models import ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem
-from .services.mochila_service import MochilaEmUso, desativar_mochila
+from .services.mochila_service import MochilaEmUsoMochila, desativar_mochila
 from .services.usuario_service import (
     criar_usuario,
     editar_usuario,
@@ -40,16 +40,15 @@ from .services.usuario_service import (
     get_nivel,
     resetar_senha,
     trocar_senha,
-    _assign_group_compat as _assign_group,
 )
 from .services.viagem_service import (
-    MochilaEmUso as MochilaEmUsoViagem,
     ViagemJaFinalizada,
     criar_viagem,
     finalizar_viagem,
     payload_from_post,
     salvar_checklist,
 )
+from .services.viagem_service import MochilaEmUsoViagem
 
 logger = logging.getLogger("core")
 
@@ -64,9 +63,14 @@ def _log(user, obj, flag, message=""):
     if not user or not user.pk:
         return
 
+    content_type = ContentType.objects.get_for_model(
+        obj.__class__,
+        for_concrete_model=True
+    )
+
     LogEntry.objects.create(
         user_id=user.pk,
-        content_type_id=ContentType.objects.get_for_model(obj).pk,
+        content_type_id=content_type.pk,
         object_id=str(obj.pk),
         object_repr=str(obj)[:200],
         action_flag=flag,
@@ -311,7 +315,7 @@ class ChecklistSaveView(PermContextMixin, View):
         if not perms.pode_ver_viagem(request.user, viagem):
             messages.error(request, "Você não tem acesso a esta viagem.")
             return redirect("viagem_list")
-        checklist_ids = list(viagem.checklist.values_list("id", flat=True))
+        checklist_ids = list(viagem.checklist.values_list("pk", flat=True))
         payload = payload_from_post(request.POST, checklist_ids)
         try:
             salvar_checklist(user=request.user, viagem=viagem, payload=payload)
@@ -492,7 +496,7 @@ class MochilaDeleteView(SupervisorRequiredMixin, View):
         mochila = get_object_or_404(Mochila, pk=pk)
         try:
             desativar_mochila(user=request.user, mochila=mochila)
-        except (PermissionDenied, MochilaEmUso) as e:
+        except (PermissionDenied, MochilaEmUsoMochila) as e:
             messages.error(request, str(e))
             return redirect("mochila_list")
         _log(request.user, mochila, DELETION, "Mochila desativada (soft delete)")

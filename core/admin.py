@@ -7,7 +7,7 @@ from .models import (
     ChecklistItem, Item, Loja, Mochila, MochilaItem,
     PasswordPolicy, Viagem,
 )
-from .services.mochila_service import MochilaEmUso, desativar_mochila
+from .services.mochila_service import MochilaEmUsoMochila, desativar_mochila
 from .services.usuario_service import resetar_senha
 
 
@@ -156,7 +156,7 @@ class MochilaAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         try:
             desativar_mochila(user=request.user, mochila=obj)
-        except MochilaEmUso as e:
+        except MochilaEmUsoMochila as e:
             self.message_user(request, str(e), level="error")
 
     def delete_queryset(self, request, queryset):
@@ -164,7 +164,7 @@ class MochilaAdmin(admin.ModelAdmin):
         for m in queryset:
             try:
                 desativar_mochila(user=request.user, mochila=m)
-            except MochilaEmUso:
+            except MochilaEmUsoMochila:
                 bloqueadas.append(m.nome)
         if bloqueadas:
             self.message_user(

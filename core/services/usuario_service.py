@@ -1,20 +1,14 @@
 """
-services/usuario_service.py — Criação, edição, exclusão e reset de senha.
-
-Regras:
-  - Senha nunca é recebida na criação — sempre "Dti@paraiba" automaticamente.
-  - Todo usuário criado nasce com must_change_password=True.
-  - Reset de senha: apenas admin. Redefine para "Dti@paraiba" + must_change=True.
-  - Supervisor não tem acesso a nenhuma operação de senha.
+services/usuario_service.py — Criação, edição, exclusão (soft delete) e reset de senha.
 """
 
 from __future__ import annotations
 
 import logging
-
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.utils import timezone
 
 from core import permissions as perms
 from ..models import PasswordPolicy
@@ -24,16 +18,16 @@ logger = logging.getLogger("core.services.usuario")
 DEFAULT_PASSWORD = "Dti@paraiba"
 
 _NIVEL_TO_GROUP = {
-    "admin":      "Admin",
+    "admin": "Admin",
     "supervisor": "Supervisor",
-    "usuario":    "Usuário",
+    "usuario": "Usuário",
 }
 
 _GROUP_TO_NIVEL = {v: k for k, v in _NIVEL_TO_GROUP.items()}
 
 
 # ──────────────────────────────────────────────
-# HELPERS INTERNOS
+# HELPERS
 # ──────────────────────────────────────────────
 
 def _assign_group(user: User, nivel: str) -> None:
@@ -44,8 +38,7 @@ def _assign_group(user: User, nivel: str) -> None:
 
 
 def _ensure_password_policy(user: User) -> PasswordPolicy:
-    policy, _ = PasswordPolicy.objects.get_or_create(user=user)
-    return policy
+    return PasswordPolicy.objects.get_or_create(user=user)[0]
 
 
 def get_nivel(user: User) -> str:
@@ -53,18 +46,12 @@ def get_nivel(user: User) -> str:
         nivel = _GROUP_TO_NIVEL.get(group.name)
         if nivel:
             return nivel
-    if user.is_superuser:
-        return "admin"
-    return "usuario"
+    return "admin" if user.is_superuser else "usuario"
 
 
 def must_change_password(user: User) -> bool:
-    try:
-        return user.password_policy.must_change_password
-    except PasswordPolicy.DoesNotExist:
-        # Se não existe policy, cria e força troca por segurança
-        PasswordPolicy.objects.create(user=user, must_change_password=True)
-        return True
+    policy, _ = PasswordPolicy.objects.get_or_create(user=user, defaults={"must_change_password": True})
+    return policy.must_change_password
 
 
 # ──────────────────────────────────────────────
@@ -72,43 +59,28 @@ def must_change_password(user: User) -> bool:
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def criar_usuario(
-    actor: User,
-    username: str,
-    nivel: str = "usuario",
-    first_name: str = "",
-    last_name: str = "",
-    email: str = "",
-) -> User:
-    """
-    Cria usuário com senha padrão automática e must_change_password=True.
-    Senha NUNCA é recebida como parâmetro.
+def criar_usuario(actor: User, username: str, nivel: str = "usuario",
+                  first_name: str = "", last_name: str = "", email: str = "") -> User:
 
-    Raises:
-        PermissionDenied — apenas admin pode criar usuários
-    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Apenas administradores podem criar usuários.")
+        raise PermissionDenied("Sem permissão.")
 
-    nivel = nivel or "usuario"
-
-    user = User(
+    user = User.objects.create(
         username=username,
         first_name=first_name,
         last_name=last_name,
         email=email,
+        is_staff=(nivel == "admin"),
+        is_superuser=(nivel == "admin"),
     )
+
     user.set_password(DEFAULT_PASSWORD)
-    user.is_staff = user.is_superuser = (nivel == "admin")
     user.save()
 
     _assign_group(user, nivel)
     PasswordPolicy.objects.create(user=user, must_change_password=True)
 
-    logger.info(
-        "Usuário '%s' criado por '%s' (nível: %s, must_change=True)",
-        user.username, actor.username, nivel,
-    )
+    logger.info("Usuário criado: %s por %s", user.username, actor.username)
     return user
 
 
@@ -117,128 +89,93 @@ def criar_usuario(
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def editar_usuario(
-    actor: User,
-    target: User,
-    username: str,
-    nivel: str,
-    first_name: str = "",
-    last_name: str = "",
-    email: str = "",
-) -> User:
-    """
-    Edita dados do usuário. Nunca altera senha.
+def editar_usuario(actor: User, target: User, username: str, nivel: str,
+                   first_name: str = "", last_name: str = "", email: str = "") -> User:
 
-    Raises:
-        PermissionDenied — apenas admin
-    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Apenas administradores podem editar usuários.")
+        raise PermissionDenied("Sem permissão.")
 
-    nivel = nivel or "usuario"
-
-    target.username   = username
+    target.username = username
     target.first_name = first_name
-    target.last_name  = last_name
-    target.email      = email
-    target.is_staff   = target.is_superuser = (nivel == "admin")
+    target.last_name = last_name
+    target.email = email
+    target.is_staff = (nivel == "admin")
+    target.is_superuser = (nivel == "admin")
     target.save()
 
     _assign_group(target, nivel)
 
-    logger.info(
-        "Usuário '%s' editado por '%s' (nível: %s)",
-        target.username, actor.username, nivel,
-    )
+    logger.info("Usuário editado: %s por %s", target.username, actor.username)
     return target
 
 
 # ──────────────────────────────────────────────
-# RESET DE SENHA (somente admin)
+# RESET SENHA
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def resetar_senha(actor: User, target: User) -> None:
-    """
-    Redefine senha para o padrão e força troca no próximo login.
-    Apenas admin pode executar.
 
-    Raises:
-        PermissionDenied — actor não é admin
-    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Apenas administradores podem redefinir senhas.")
+        raise PermissionDenied("Sem permissão.")
 
     target.set_password(DEFAULT_PASSWORD)
-    target.save(update_fields=["password"])
+    target.save()
 
     policy = _ensure_password_policy(target)
     policy.must_change_password = True
     policy.save(update_fields=["must_change_password"])
 
-    logger.info(
-        "Senha de '%s' redefinida por '%s' (must_change=True)",
-        target.username, actor.username,
-    )
+    logger.info("Senha resetada: %s por %s", target.username, actor.username)
 
 
 # ──────────────────────────────────────────────
-# TROCA DE SENHA (pelo próprio usuário)
+# TROCA DE SENHA
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
-    """
-    Troca de senha pelo próprio usuário após primeiro login.
-    Valida a senha atual antes de alterar.
 
-    Raises:
-        ValueError — senha atual incorreta ou nova senha inválida
-    """
     if not user.check_password(senha_atual):
-        raise ValueError("Senha atual incorreta.")
+        raise ValueError("Senha incorreta.")
 
     if len(nova_senha) < 8:
-        raise ValueError("A nova senha deve ter no mínimo 8 caracteres.")
+        raise ValueError("Senha fraca.")
 
     if nova_senha == DEFAULT_PASSWORD:
-        raise ValueError("A nova senha não pode ser igual à senha padrão do sistema.")
+        raise ValueError("Senha inválida.")
 
     user.set_password(nova_senha)
-    user.save(update_fields=["password"])
+    user.save()
 
     policy = _ensure_password_policy(user)
     policy.must_change_password = False
     policy.save(update_fields=["must_change_password"])
 
-    logger.info("Usuário '%s' trocou a senha com sucesso.", user.username)
+    logger.info("Senha alterada: %s", user.username)
 
 
 # ──────────────────────────────────────────────
-# EXCLUIR USUÁRIO
+# EXCLUSÃO (SOFT DELETE REAL)
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def excluir_usuario(actor: User, target: User) -> None:
-    """
-    Raises:
-        PermissionDenied — apenas admin
-        ValueError       — auto-exclusão bloqueada
-    """
+
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Apenas administradores podem excluir usuários.")
+        raise PermissionDenied("Sem permissão.")
 
     if target == actor:
-        raise ValueError("Você não pode excluir sua própria conta.")
+        raise ValueError("Auto-exclusão bloqueada.")
 
-    username = target.username
-    target.delete()
-    logger.info("Usuário '%s' excluído por '%s'.", username, actor.username)
+    if target.is_superuser:
+        raise PermissionDenied("Não pode excluir admin master.")
 
+    target.is_active = False
+    target.save(update_fields=["is_active"])
 
-# ──────────────────────────────────────────────
-# RETROCOMPAT — usado em views.py
-# ──────────────────────────────────────────────
-
-def _assign_group_compat(user: User, nivel: str) -> None:
-    _assign_group(user, nivel)
+    logger.info(
+        "Usuário desativado: %s por %s",
+        target.username,
+        actor.username
+    )

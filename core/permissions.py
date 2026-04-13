@@ -26,7 +26,7 @@ def _is_admin(user: User) -> bool:
 
 
 def _is_supervisor(user: User) -> bool:
-    return user.is_active and user.has_perm("core.supervisor_access")
+    return user.is_active and user.groups.filter(name="Supervisor").exists()
 
 
 def _pode_editar(user: User) -> bool:
