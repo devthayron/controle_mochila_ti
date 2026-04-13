@@ -1,0 +1,24 @@
+# db.sqlite3
+# static/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+venv/
+env/
+.venv/
+*.log
+media/
+staticfiles/
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+DEPLOY.md
+

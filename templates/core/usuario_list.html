@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários — TI Armazém Paraíba{% endblock %}
+{% block nav_usuarios %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <span class="current">Usuários</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Gerenciar Usuários</h1>
+        <p>Controle de acesso ao sistema</p>
+    </div>
+    <div class="page-header-right">
+        <a href="{% url 'usuario_create' %}" class="btn btn-primary">
+            <i class="fa-solid fa-user-plus"></i> Novo Usuário
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>{{ usuarios.count }} usuário(s)</h2>
+    </div>
+
+    {% if usuarios %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Usuário</th>
+                    <th>Nome</th>
+                    <th>E-mail</th>
+                    <th>Nível</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in usuarios %}
+            <tr>
+                <td>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;
+                            {% if u.profile.nivel == 'admin' %}background:rgba(200,16,46,.15);color:var(--ap-red-light);
+                            {% elif u.profile.nivel == 'supervisor' %}background:rgba(168,85,247,.15);color:#C084FC;
+                            {% else %}background:rgba(59,130,246,.15);color:#60A5FA;{% endif %}">
+                            {{ u.username|slice:":1"|upper }}
+                        </div>
+                        <span style="font-weight:600;font-family:'DM Mono',monospace;font-size:.85rem;">{{ u.username }}</span>
+                        {% if u == request.user %}
+                            <span class="badge" style="font-size:.65rem;background:rgba(34,197,94,.1);color:#4ade80;">você</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>{{ u.get_full_name|default:"—" }}</td>
+                <td class="muted">{{ u.email|default:"—" }}</td>
+                <td>
+                    {% if u.profile.nivel == 'admin' %}
+                        <span class="badge" style="background:rgba(200,16,46,.12);color:var(--ap-red-light);">
+                            <i class="fa-solid fa-shield-halved"></i> Admin
+                        </span>
+                    {% elif u.profile.nivel == 'supervisor' %}
+                        <span class="badge" style="background:rgba(168,85,247,.12);color:#C084FC;">
+                            <i class="fa-solid fa-user-tie"></i> Supervisor
+                        </span>
+                    {% else %}
+                        <span class="badge" style="background:rgba(59,130,246,.12);color:#60A5FA;">
+                            <i class="fa-solid fa-user"></i> Usuário
+                        </span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:6px;">
+                        <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                            <i class="fa-solid fa-pen"></i>
+                        </a>
+                        {% if u != request.user %}
+                        <form method="post" action="{% url 'usuario_delete' u.pk %}" onsubmit="return confirm('Excluir o usuário {{ u.username }}?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Excluir" style="color:var(--ap-red-light);">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="fa-solid fa-users"></i></div>
+        <h3>Nenhum usuário cadastrado</h3>
+        <a href="{% url 'usuario_create' %}" class="btn btn-primary" style="margin-top:8px;">
+            <i class="fa-solid fa-user-plus"></i> Criar primeiro usuário
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Legenda de níveis -->
+<div class="card" style="margin-top:16px;">
+    <div class="card-header"><h3>Níveis de Acesso</h3></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:16px 20px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:8px;background:rgba(200,16,46,.12);display:flex;align-items:center;justify-content:center;color:var(--ap-red-light);flex-shrink:0;">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <div style="font-weight:600;margin-bottom:2px;">Administrador</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">Acesso total + painel admin + gerenciar usuários</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:8px;background:rgba(168,85,247,.12);display:flex;align-items:center;justify-content:center;color:#C084FC;flex-shrink:0;">
+                <i class="fa-solid fa-user-tie"></i>
+            </div>
+            <div>
+                <div style="font-weight:600;margin-bottom:2px;">Supervisor</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">Criar, editar e excluir registros. Sem acesso ao admin.</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="width:36px;height:36px;border-radius:8px;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center;color:#60A5FA;flex-shrink:0;">
+                <i class="fa-solid fa-user"></i>
+            </div>
+            <div>
+                <div style="font-weight:600;margin-bottom:2px;">Usuário</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">Somente leitura. Não pode criar ou excluir.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

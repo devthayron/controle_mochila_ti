@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editing %}Editar Loja{% else %}Nova Loja{% endif %} — TI Armazém Paraíba{% endblock %}
+{% block nav_lojas %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'loja_list' %}">Lojas</a>
+    <span class="sep">/</span>
+    <span class="current">{% if editing %}Editar{% else %}Nova{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>{% if editing %}Editar Loja{% else %}Nova Loja{% endif %}</h1>
+        <p>{% if editing %}Atualize os dados da loja{% else %}Cadastre uma nova unidade{% endif %}</p>
+    </div>
+</div>
+
+<div class="card card-form" style="max-width:480px;">
+    <form method="post" class="form-layout">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="{{ form.nome.id_for_label }}">
+                <i class="fa-solid fa-store" style="color:var(--text-muted);margin-right:6px;"></i>
+                Nome da loja
+            </label>
+            {{ form.nome }}
+            {% if form.nome.errors %}
+                <span class="form-error">{{ form.nome.errors.0 }}</span>
+            {% endif %}
+        </div>
+        <div class="form-actions">
+            <a href="{% url 'loja_list' %}" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-save"></i> Salvar
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

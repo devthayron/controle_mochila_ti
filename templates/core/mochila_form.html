@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editing %}Editar Mochila{% else %}Nova Mochila{% endif %} — TI Armazém Paraíba{% endblock %}
+{% block nav_mochilas %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'mochila_list' %}">Mochilas</a>
+    <span class="sep">/</span>
+    <span class="current">{% if editing %}Editar{% else %}Nova{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>{% if editing %}Editar Mochila{% else %}Nova Mochila{% endif %}</h1>
+        <p>{% if editing %}Atualize o kit de equipamentos{% else %}Crie um kit de equipamentos{% endif %}</p>
+    </div>
+</div>
+
+<div class="card card-form" style="max-width:640px;">
+    <form method="post" class="form-layout">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="{{ form.nome.id_for_label }}">
+                <i class="fa-solid fa-briefcase" style="color:var(--text-muted);margin-right:6px;"></i>
+                Nome da mochila
+            </label>
+            {{ form.nome }}
+            {% if form.nome.errors %}<span class="form-error">{{ form.nome.errors.0 }}</span>{% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.itens.id_for_label }}">
+                <i class="fa-solid fa-screwdriver-wrench" style="color:var(--text-muted);margin-right:6px;"></i>
+                Itens / Equipamentos
+            </label>
+            <span style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:8px;">
+                <i class="fa-solid fa-circle-info"></i>
+                Segure Ctrl (ou Cmd no Mac) para selecionar múltiplos itens
+            </span>
+            {{ form.itens }}
+            {% if form.itens.errors %}<span class="form-error">{{ form.itens.errors.0 }}</span>{% endif %}
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'mochila_list' %}" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-save"></i> Salvar Mochila
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Viagem #{{ viagem.id }} — TI Armazém Paraíba{% endblock %}
+{% block nav_viagens %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'viagem_list' %}">Viagens</a>
+    <span class="sep">/</span>
+    <span class="current">Viagem #{{ viagem.id }}</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- HEADER -->
+<div class="page-header">
+    <div class="page-header-left">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <h1>Viagem <span style="color:var(--ap-red);">#{{ viagem.id }}</span></h1>
+            {% if viagem.status == 'andamento' %}
+                <span class="badge badge-amber" style="font-size:.8rem;padding:4px 12px;">
+                    <i class="fa-solid fa-circle-notch fa-spin" style="font-size:.6rem;"></i>
+                    Em andamento
+                </span>
+            {% else %}
+                <span class="badge badge-green" style="font-size:.8rem;padding:4px 12px;">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Finalizada
+                </span>
+            {% endif %}
+        </div>
+        <p>{{ viagem.loja.nome }} &middot; {{ viagem.data_saida|date:"d/m/Y" }}</p>
+    </div>
+    <div class="page-header-right">
+        <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
+            <i class="fa-solid fa-arrow-left"></i> Voltar
+        </a>
+        {% if viagem.status == 'andamento' and user_profile.pode_editar %}
+        <form method="post" action="{% url 'viagem_finalizar' viagem.pk %}" style="display:inline;"
+              onsubmit="return confirm('Confirmar finalização da Viagem #{{ viagem.id }}?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">
+                <i class="fa-solid fa-check"></i> Finalizar Viagem
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- DETAIL CARDS -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+            <i class="fa-solid fa-user" style="margin-right:4px;"></i>Responsável
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ap-red),var(--accent-purple));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0;">
+                {{ viagem.responsavel.username|slice:":2"|upper }}
+            </div>
+            <span style="font-weight:600;font-size:.9rem;">{{ viagem.responsavel.get_full_name|default:viagem.responsavel.username }}</span>
+        </div>
+    </div>
+
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+            <i class="fa-solid fa-store" style="margin-right:4px;"></i>Loja destino
+        </div>
+        <div style="font-weight:600;font-size:.9rem;display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-store" style="color:var(--ap-red);"></i>
+            {{ viagem.loja.nome }}
+        </div>
+    </div>
+
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+            <i class="fa-solid fa-briefcase" style="margin-right:4px;"></i>Mochila
+        </div>
+        <div style="font-weight:600;font-size:.9rem;display:flex;align-items:center;gap:8px;">
+            <i class="fa-solid fa-briefcase" style="color:var(--accent-blue);"></i>
+            {{ viagem.mochila.nome }}
+        </div>
+    </div>
+
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">
+            <i class="fa-solid fa-calendar-arrow-up" style="margin-right:4px;"></i>Saída
+        </div>
+        <div style="font-weight:600;font-size:.9rem;">{{ viagem.data_saida|date:"d/m/Y" }}</div>
+        <div style="font-size:.8rem;color:var(--text-muted);font-family:'DM Mono',monospace;">{{ viagem.data_saida|time:"H:i" }}</div>
+    </div>
+
+    {% if viagem.data_retorno %}
+    <div class="card" style="padding:18px 20px;">
+        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">
+            <i class="fa-solid fa-calendar-arrow-down" style="margin-right:4px;"></i>Retorno
+        </div>
+        <div style="font-weight:600;font-size:.9rem;">{{ viagem.data_retorno|date:"d/m/Y" }}</div>
+        <div style="font-size:.8rem;color:var(--text-muted);font-family:'DM Mono',monospace;">{{ viagem.data_retorno|time:"H:i" }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- CHECKLIST -->
+<div class="card">
+    <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <i class="fa-solid fa-list-check" style="color:var(--ap-red);"></i>
+            <h2>Checklist de Equipamentos</h2>
+        </div>
+        <span style="font-size:.8rem;color:var(--text-muted);">{{ checklist_items.count }} item(ns)</span>
+    </div>
+
+    {% if checklist_items %}
+    <form method="post" action="{% url 'viagem_checklist_save' viagem.pk %}">
+        {% csrf_token %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Equipamento</th>
+                        <th style="text-align:center;">Qtd</th>
+                        <th style="text-align:center;">
+                            <i class="fa-solid fa-arrow-right" style="color:var(--accent-green);font-size:.7rem;"></i>
+                            Saída OK
+                        </th>
+                        <th style="text-align:center;">
+                            <i class="fa-solid fa-arrow-left" style="color:var(--accent-blue);font-size:.7rem;"></i>
+                            Retorno OK
+                        </th>
+                        <th>Observação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ci in checklist_items %}
+                <tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:9px;">
+                            <div style="width:28px;height:28px;border-radius:6px;background:rgba(59,130,246,.1);display:flex;align-items:center;justify-content:center;color:#60A5FA;font-size:.7rem;flex-shrink:0;">
+                                <i class="fa-solid fa-screwdriver-wrench"></i>
+                            </div>
+                            <span style="font-weight:500;">{{ ci.item.nome }}</span>
+                        </div>
+                    </td>
+                    <td style="text-align:center;">
+                        <span class="qty-badge">{{ ci.quantidade }}</span>
+                    </td>
+                    <td style="text-align:center;">
+                        <label class="toggle-wrap" style="justify-content:center;">
+                            <div class="toggle">
+                                <input type="checkbox" name="saida_ok_{{ ci.id }}"
+                                    {% if ci.saida_ok %}checked{% endif %}
+                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+                                <div class="toggle-slider"></div>
+                            </div>
+                        </label>
+                    </td>
+                    <td style="text-align:center;">
+                        <label class="toggle-wrap" style="justify-content:center;">
+                            <div class="toggle">
+                                <input type="checkbox" name="retorno_ok_{{ ci.id }}"
+                                    {% if ci.retorno_ok %}checked{% endif %}
+                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+                                <div class="toggle-slider"></div>
+                            </div>
+                        </label>
+                    </td>
+                    <td>
+                        <input type="text"
+                            name="obs_{{ ci.id }}"
+                            value="{{ ci.observacao_retorno }}"
+                            placeholder="Observação…"
+                            maxlength="255"
+                            style="width:100%;max-width:280px;"
+                            {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if viagem.status == 'andamento' %}
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:16px 20px;border-top:1px solid var(--border);">
+            <span style="font-size:.8rem;color:var(--text-muted);">
+                <i class="fa-solid fa-circle-info"></i>
+                Alterações são salvas ao clicar em "Salvar"
+            </span>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-floppy-disk"></i> Salvar Checklist
+            </button>
+        </div>
+        {% else %}
+        <div class="alert alert-info" style="margin:16px 20px;">
+            <i class="fa-solid fa-lock"></i>
+            Checklist bloqueado — esta viagem já foi finalizada.
+        </div>
+        {% endif %}
+    </form>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="fa-solid fa-list-check"></i></div>
+        <h3>Checklist vazio</h3>
+        <p>Nenhum item foi adicionado à mochila desta viagem.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- RESUMO (finalizadas) -->
+{% if viagem.status == 'finalizada' %}
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <h2>
+            <i class="fa-solid fa-chart-pie" style="color:var(--text-muted);margin-right:8px;"></i>
+            Resumo do Retorno
+        </h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;padding:20px;">
+
+        <div style="text-align:center;">
+            <div style="font-size:2rem;font-weight:700;">
+                {{ total_itens }}
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
+                Total de itens
+            </div>
+        </div>
+
+        <div style="text-align:center;">
+            <div style="font-size:2rem;font-weight:700;color:var(--accent-green);">
+                {{ retornados_ok }}
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
+                Retornados OK
+            </div>
+        </div>
+
+        <div style="text-align:center;">
+            <div style="font-size:2rem;font-weight:700;color:var(--ap-red-light);">
+                {{ pendentes }}
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
+                Com pendência
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}

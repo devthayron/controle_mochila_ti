@@ -1,0 +1,59 @@
+/* ─────────────────────────────────────────────────────────
+   tokens.css — Design tokens & reset global
+   ───────────────────────────────────────────────────────── */
+
+:root {
+    /* Brand */
+    --ap-red:        #C8102E;
+    --ap-red-dark:   #9C0D24;
+    --ap-red-light:  #E8324A;
+
+    /* Backgrounds */
+    --bg-base:       #0D0F14;
+    --bg-surface:    #13161D;
+    --bg-card:       #1A1E28;
+    --bg-hover:      #1F2435;
+
+    /* Borders */
+    --border:        #252A38;
+    --border-light:  #2E3447;
+
+    /* Text */
+    --text-primary:  #EEF0F6;
+    --text-secondary:#8B91A8;
+    --text-muted:    #545B72;
+
+    /* Accents */
+    --accent-blue:   #3B82F6;
+    --accent-green:  #22C55E;
+    --accent-amber:  #F59E0B;
+    --accent-purple: #A855F7;
+
+    /* Shadows */
+    --shadow-sm:     0 1px 3px rgba(0,0,0,.4);
+    --shadow-md:     0 4px 16px rgba(0,0,0,.5);
+    --shadow-lg:     0 12px 40px rgba(0,0,0,.6);
+
+    /* Radii */
+    --radius-sm:     6px;
+    --radius-md:     10px;
+    --radius-lg:     16px;
+
+    /* Layout */
+    --sidebar-w:     260px;
+    --topbar-h:      64px;
+}
+
+/* ─── RESET ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 15px; }
+
+body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    overflow-x: hidden;
+}

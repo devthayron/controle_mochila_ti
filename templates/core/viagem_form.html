@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Viagem — TI Armazém Paraíba{% endblock %}
+{% block nav_nova_viagem %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'viagem_list' %}">Viagens</a>
+    <span class="sep">/</span>
+    <span class="current">Nova Viagem</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Nova Viagem</h1>
+        <p>Registre a saída de uma mochila para atendimento</p>
+    </div>
+    <div class="page-header-right">
+        <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
+            <i class="fa-solid fa-arrow-left"></i> Cancelar
+        </a>
+    </div>
+</div>
+
+<div class="viagem-layout">
+
+    <!-- FORM -->
+    <div class="card">
+        <div class="card-header">
+            <h2><i class="fa-solid fa-route icon-danger"></i> Dados da Viagem</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" id="viagem-form">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label for="{{ form.responsavel.id_for_label }}">
+                            <i class="fa-solid fa-user" style="color:var(--text-muted);margin-right:5px;"></i>
+                            Responsável
+                        </label>
+                        {{ form.responsavel }}
+                        {% if form.responsavel.errors %}
+                        <span class="error-text">{{ form.responsavel.errors.as_text }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.loja.id_for_label }}">
+                            <i class="fa-solid fa-store" style="color:var(--text-muted);margin-right:5px;"></i>
+                            Loja de Destino
+                        </label>
+                        {{ form.loja }}
+                        {% if form.loja.errors %}
+                        <span class="error-text">{{ form.loja.errors.as_text }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group full">
+                        <label for="{{ form.mochila.id_for_label }}">
+                            <i class="fa-solid fa-briefcase" style="color:var(--text-muted);margin-right:5px;"></i>
+                            Mochila
+                        </label>
+                        {{ form.mochila }}
+                        {% if form.mochila.errors %}
+                        <span class="error-text">{{ form.mochila.errors.as_text }}</span>
+                        {% endif %}
+                        <span class="help-text">
+                            <i class="fa-solid fa-circle-info"></i>
+                            O checklist será criado automaticamente com os itens da mochila selecionada.
+                        </span>
+                    </div>
+
+                </div>
+
+                <hr class="divider">
+
+                <div class="form-actions">
+                    <a href="{% url 'viagem_list' %}" class="btn btn-ghost">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-paper-plane"></i> Registrar Saída
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="card hidden" id="mochila-preview">
+        <div class="card-header">
+            <h2><i class="fa-solid fa-briefcase icon-info"></i> Conteúdo da Mochila</h2>
+        </div>
+        <div id="mochila-itens"></div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div class="card" id="mochila-empty-card">
+        <div class="card-body">
+            <div class="empty-state">
+                <div class="icon"><i class="fa-solid fa-briefcase"></i></div>
+                <h3>Selecione uma mochila</h3>
+                <p>O conteúdo será exibido aqui para conferência antes da saída.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const mochilaData = {{ mochilas_json|safe|default:"{}" }};
+const sel         = document.querySelector('[name="mochila"]');
+const preview     = document.getElementById('mochila-preview');
+const emptyCard   = document.getElementById('mochila-empty-card');
+const container   = document.getElementById('mochila-itens');
+
+function updatePreview() {
+    const id = sel.value;
+    if (!id || !mochilaData[id]) {
+        preview.classList.add('hidden');
+        emptyCard.classList.remove('hidden');
+        return;
+    }
+    const items = mochilaData[id];
+    preview.classList.remove('hidden');
+    emptyCard.classList.add('hidden');
+    if (!items.length) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding:40px 20px;">
+                <div class="icon"><i class="fa-solid fa-box-open"></i></div>
+                <h3>Mochila vazia</h3>
+                <p>Nenhum item cadastrado nesta mochila.</p>
+            </div>`;
+        return;
+    }
+    container.innerHTML = `
+        <ul class="item-list">
+            ${items.map(i => `
+                <li class="item-row">
+                    <div class="item-icon"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                    <span class="item-name">${i.item}</span>
+                    <span class="item-qtd">×${i.quantidade}</span>
+                </li>`).join('')}
+        </ul>
+        <div class="item-footer">
+            <i class="fa-solid fa-circle-info"></i>
+            ${items.length} item(ns) serão adicionados ao checklist
+        </div>`;
+}
+
+sel.addEventListener('change', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

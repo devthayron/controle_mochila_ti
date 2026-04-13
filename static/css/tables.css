@@ -1,0 +1,53 @@
+/* ─────────────────────────────────────────────────────────
+   tables.css — Tabelas de dados e checklist
+   ───────────────────────────────────────────────────────── */
+
+.table-wrap { overflow-x: auto; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .855rem;
+}
+
+thead tr { border-bottom: 1px solid var(--border-light); }
+thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    white-space: nowrap;
+}
+
+tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .12s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover      { background: var(--bg-hover); }
+
+tbody td {
+    padding: 12px 16px;
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+tbody td.muted { color: var(--text-secondary); }
+
+/* ─── Checklist específico ─────────────────────────────── */
+.checklist-row td:first-child { font-weight: 500; }
+
+.qty-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: .8rem;
+    color: var(--text-secondary);
+}

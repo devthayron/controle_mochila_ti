@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — TI Armazém Paraíba{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <span class="current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Dashboard</h1>
+        <p>Visão geral das viagens e equipamentos</p>
+    </div>
+    <div class="page-header-right">
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'viagem_create' %}" class="btn btn-primary">
+            <i class="fa-solid fa-plus"></i> Nova Viagem
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-grid">
+    <div class="stat-card red">
+        <div class="stat-icon red"><i class="fa-solid fa-route"></i></div>
+        <div class="stat-info">
+            <div class="label">Viagens em andamento</div>
+            <div class="value">{{ total_andamento }}</div>
+        </div>
+    </div>
+    <div class="stat-card green">
+        <div class="stat-icon green"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-info">
+            <div class="label">Finalizadas (mês)</div>
+            <div class="value">{{ total_finalizadas }}</div>
+        </div>
+    </div>
+    <div class="stat-card blue">
+        <div class="stat-icon blue"><i class="fa-solid fa-briefcase"></i></div>
+        <div class="stat-info">
+            <div class="label">Mochilas ativas</div>
+            <div class="value">{{ total_mochilas }}</div>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-icon amber"><i class="fa-solid fa-store"></i></div>
+        <div class="stat-info">
+            <div class="label">Lojas cadastradas</div>
+            <div class="value">{{ total_lojas }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- VIAGENS EM ANDAMENTO -->
+<div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+        <h2>
+            <i class="fa-solid fa-route card-title-icon icon-red"></i>
+            Viagens em Andamento
+        </h2>
+        <a href="{% url 'viagem_list' %}?status=andamento" class="btn btn-ghost btn-sm">
+            Ver todas <i class="fa-solid fa-arrow-right" style="font-size:.7rem;"></i>
+        </a>
+    </div>
+
+    {% if viagens_andamento %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Responsável</th>
+                    <th>Loja</th>
+                    <th>Mochila</th>
+                    <th>Saída</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for v in viagens_andamento %}
+            <tr>
+                <td class="muted mono">#{{ v.id }}</td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ap-red),var(--accent-purple));display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff;flex-shrink:0;">
+                            {{ v.responsavel.username|slice:":1"|upper }}
+                        </div>
+                        <strong>{{ v.responsavel.get_full_name|default:v.responsavel.username }}</strong>
+                    </div>
+                </td>
+                <td>{{ v.loja.nome }}</td>
+                <td><span class="badge badge-blue">{{ v.mochila.nome }}</span></td>
+                <td class="muted small">{{ v.data_saida|date:"d/m/Y H:i" }}</td>
+                <td>
+                    <span class="badge badge-amber">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:.55rem;"></i>
+                        Em andamento
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm">
+                        <i class="fa-solid fa-eye"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="fa-solid fa-route"></i></div>
+        <h3>Nenhuma viagem em andamento</h3>
+        <p>Todas as mochilas estão disponíveis no momento.</p>
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'viagem_create' %}" class="btn btn-primary" style="margin-top:8px;">
+            <i class="fa-solid fa-plus"></i> Iniciar Viagem
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- GRID: Últimas Viagens + Mochilas -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+    <!-- Últimas viagens -->
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                <i class="fa-solid fa-clock-rotate-left card-title-icon icon-muted"></i>
+                Últimas Viagens
+            </h2>
+            <a href="{% url 'viagem_list' %}" class="btn btn-ghost btn-sm">Ver todas</a>
+        </div>
+
+        {% if ultimas_viagens %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Loja</th>
+                        <th>Responsável</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for v in ultimas_viagens %}
+                <tr>
+                    <td class="muted mono">#{{ v.id }}</td>
+                    <td>{{ v.loja.nome }}</td>
+                    <td class="muted">{{ v.responsavel.username }}</td>
+                    <td>
+                        {% if v.status == 'andamento' %}
+                            <span class="badge badge-amber">Em andamento</span>
+                        {% else %}
+                            <span class="badge badge-green">Finalizada</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state compact">
+            <div class="icon"><i class="fa-solid fa-inbox"></i></div>
+            <h3>Sem viagens registradas</h3>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Mochilas -->
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                <i class="fa-solid fa-briefcase card-title-icon icon-muted"></i>
+                Mochilas
+            </h2>
+            <a href="{% url 'mochila_list' %}" class="btn btn-ghost btn-sm">Gerenciar</a>
+        </div>
+
+        {% if mochilas %}
+        <ul class="item-list">
+            {% for m in mochilas %}
+            <li class="item-row">
+                <div class="item-icon">
+                    <i class="fa-solid fa-briefcase"></i>
+                </div>
+                <div class="item-name">{{ m.nome }}</div>
+                <div class="item-qtd">{{ m.mochilaitem_set.count }} item(ns)</div>
+                <a href="{% url 'mochila_detail' m.pk %}" class="btn btn-ghost btn-sm">
+                    <i class="fa-solid fa-eye"></i>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty-state">
+            <div class="icon"><i class="fa-solid fa-briefcase"></i></div>
+            <h3>Nenhuma mochila</h3>
+            {% if user_profile.pode_editar %}
+            <a href="{% url 'mochila_create' %}" class="btn btn-primary" style="margin-top:8px;">
+                <i class="fa-solid fa-plus"></i> Nova Mochila
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+{% endblock %}

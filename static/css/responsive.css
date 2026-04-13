@@ -1,0 +1,25 @@
+/* ─────────────────────────────────────────────────────────
+   responsive.css — Media queries e ajustes mobile
+   ───────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    /* Sidebar fecha e abre por JS */
+    .sidebar              { transform: translateX(-100%); }
+    .sidebar.open         { transform: translateX(0); box-shadow: var(--shadow-lg); }
+
+    /* Main ocupa toda a largura */
+    .main-wrap            { margin-left: 0; }
+    .topbar               { left: 0; }
+
+    /* Hamburger visível */
+    .hamburger            { display: flex; }
+
+    /* Stats em 2 colunas */
+    .stats-grid           { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 540px) {
+    .page-content         { padding: 16px; }
+    .stats-grid           { grid-template-columns: 1fr 1fr; }
+    .stat-info .value     { font-size: 1.3rem; }
+}

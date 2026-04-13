@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar Exclusão — TI Armazém Paraíba{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <span class="current">Excluir</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;margin:60px auto;">
+    <div class="card" style="text-align:center;padding:44px 36px;">
+        <div style="width:64px;height:64px;background:rgba(200,16,46,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:var(--ap-red-light);font-size:1.6rem;border:2px solid rgba(200,16,46,.2);">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h2 style="margin-bottom:10px;font-size:1.25rem;">{{ titulo }}</h2>
+        <p style="color:var(--text-secondary);margin-bottom:32px;line-height:1.6;">{{ mensagem }}</p>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:28px;">
+            <i class="fa-solid fa-circle-info"></i>
+            Esta ação não pode ser desfeita.
+        </p>
+        <div style="display:flex;gap:12px;justify-content:center;">
+            <a href="{{ voltar_url }}" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i> Cancelar
+            </a>
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" style="background:var(--ap-red);border-color:var(--ap-red);">
+                    <i class="fa-solid fa-trash"></i> Confirmar Exclusão
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

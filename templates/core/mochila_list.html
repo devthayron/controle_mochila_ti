@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Mochilas — TI Armazém Paraíba{% endblock %}
+{% block nav_mochilas %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <span class="current">Mochilas</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Mochilas</h1>
+        <p>Kits de equipamentos disponíveis para envio</p>
+    </div>
+    <div class="page-header-right">
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'mochila_create' %}" class="btn btn-primary">
+            <i class="fa-solid fa-plus"></i> Nova Mochila
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if mochilas %}
+<div class="mochila-grid">
+    {% for m in mochilas %}
+    <div class="card mochila-card">
+        <div class="mochila-header">
+            <div class="mochila-icon">
+                <i class="fa-solid fa-briefcase"></i>
+            </div>
+            <div class="mochila-title-wrap">
+                <div class="mochila-title">{{ m.nome }}</div>
+                <div class="mochila-sub">
+                    <i class="fa-solid fa-screwdriver-wrench" style="font-size:.65rem;"></i>
+                    {{ m.mochilaitem_set.count }} equipamento(s)
+                </div>
+            </div>
+        </div>
+
+        <div class="mochila-items">
+            {% for mi in m.mochilaitem_set.all|slice:":6" %}
+            <div class="mochila-item">
+                <span class="item-name">{{ mi.item.nome }}</span>
+                <span class="item-qtd">×{{ mi.quantidade }}</span>
+            </div>
+            {% empty %}
+            <div class="mochila-empty">
+                <i class="fa-solid fa-box-open"></i> Mochila vazia
+            </div>
+            {% endfor %}
+            {% if m.mochilaitem_set.count > 6 %}
+            <div class="mochila-item" style="color:var(--text-muted);font-size:.75rem;font-style:italic;">
+                + {{ m.mochilaitem_set.count|add:"-6" }} mais…
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mochila-actions">
+            <a href="{% url 'mochila_detail' m.pk %}" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-eye"></i> Ver
+            </a>
+            {% if user_profile.pode_editar %}
+            <a href="{% url 'mochila_edit' m.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                <i class="fa-solid fa-pen"></i>
+            </a>
+            <a href="{% url 'mochila_delete' m.pk %}" class="btn btn-ghost btn-sm" title="Excluir" style="color:var(--ap-red-light);">
+                <i class="fa-solid fa-trash"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <div class="icon"><i class="fa-solid fa-briefcase"></i></div>
+        <h3>Nenhuma mochila cadastrada</h3>
+        <p>Crie mochilas com os equipamentos para enviar às lojas.</p>
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'mochila_create' %}" class="btn btn-primary" style="margin-top:8px;">
+            <i class="fa-solid fa-plus"></i> Nova Mochila
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

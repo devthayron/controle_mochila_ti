@@ -1,0 +1,150 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Controle de Mochila — TI Armazém Paraíba{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+    <link rel="stylesheet" href="{% static 'css/sidebar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/layout.css' %}">
+    <link rel="stylesheet" href="{% static 'css/buttons.css' %}">
+    <link rel="stylesheet" href="{% static 'css/cards.css' %}">
+    <link rel="stylesheet" href="{% static 'css/tables.css' %}">
+    <link rel="stylesheet" href="{% static 'css/forms.css' %}">
+    <link rel="stylesheet" href="{% static 'css/components.css' %}">
+    <link rel="stylesheet" href="{% static 'css/responsive.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">
+            <i class="fa-solid fa-briefcase"></i>
+        </div>
+        <div class="logo-text">
+            <strong>Armazém Paraíba</strong>
+            <span>TI · Controle de Mochila</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <span class="nav-section-label">Painel</span>
+        <a href="{% url 'dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}">
+            <i class="fa-solid fa-gauge-high"></i> Dashboard
+        </a>
+
+        <span class="nav-section-label">Operações</span>
+        <a href="{% url 'viagem_list' %}" class="nav-item {% block nav_viagens %}{% endblock %}">
+            <i class="fa-solid fa-route"></i> Viagens
+        </a>
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'viagem_create' %}" class="nav-item {% block nav_nova_viagem %}{% endblock %}">
+            <i class="fa-solid fa-circle-plus"></i> Nova Viagem
+        </a>
+        {% endif %}
+
+        <span class="nav-section-label">Inventário</span>
+        <a href="{% url 'mochila_list' %}" class="nav-item {% block nav_mochilas %}{% endblock %}">
+            <i class="fa-solid fa-briefcase"></i> Mochilas
+        </a>
+        <a href="{% url 'item_list' %}" class="nav-item {% block nav_itens %}{% endblock %}">
+            <i class="fa-solid fa-screwdriver-wrench"></i> Itens / Equipamentos
+        </a>
+
+        <span class="nav-section-label">Cadastros</span>
+        <a href="{% url 'loja_list' %}" class="nav-item {% block nav_lojas %}{% endblock %}">
+            <i class="fa-solid fa-store"></i> Lojas
+        </a>
+
+        {% if user_profile.is_admin %}
+        <span class="nav-section-label">Administração</span>
+        <a href="{% url 'usuario_list' %}" class="nav-item {% block nav_usuarios %}{% endblock %}">
+            <i class="fa-solid fa-users-gear"></i> Usuários
+        </a>
+        <a href="/admin/" class="nav-item" target="_blank" rel="noopener">
+            <i class="fa-solid fa-sliders"></i> Painel Admin
+            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.6rem;margin-left:auto;opacity:.5;"></i>
+        </a>
+        {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="user-avatar">{{ request.user.username|slice:":1"|upper }}</div>
+        <div class="user-info">
+            <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+            <span>
+                {% if user_profile.is_admin %}<i class="fa-solid fa-shield-halved" style="color:var(--ap-red-light);font-size:.65rem;"></i> Administrador
+                {% elif user_profile.is_supervisor %}<i class="fa-solid fa-user-tie" style="color:#C084FC;font-size:.65rem;"></i> Supervisor
+                {% else %}<i class="fa-solid fa-user" style="color:#60A5FA;font-size:.65rem;"></i> Usuário{% endif %}
+            </span>
+        </div>
+        <form id="logout-form" method="post" action="{% url 'logout' %}" style="display:none;">
+            {% csrf_token %}
+        </form>
+        <a href="#" class="js-logout sidebar-logout-btn" title="Sair">
+            <i class="fa-solid fa-right-from-bracket"></i>
+        </a>
+    </div>
+</aside>
+
+<!-- TOPBAR -->
+<div class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <i class="fa-solid fa-bars"></i>
+    </button>
+    <nav class="topbar-breadcrumb" aria-label="Breadcrumb">
+        <a href="{% url 'dashboard' %}"><i class="fa-solid fa-house" style="font-size:.75rem;"></i></a>
+        {% block breadcrumb %}{% endblock %}
+    </nav>
+    <div class="topbar-actions">
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'viagem_create' %}" class="btn-icon" title="Nova Viagem">
+            <i class="fa-solid fa-plus"></i>
+        </a>
+        {% endif %}
+        {% if user_profile.is_admin %}
+        <a href="/admin/" class="btn-icon" title="Painel Admin" target="_blank" rel="noopener">
+            <i class="fa-solid fa-gear"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- CONTENT -->
+<div class="main-wrap">
+    <main class="page-content">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">
+                    {% if 'error' in message.tags or 'danger' in message.tags %}
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                    {% elif 'warning' in message.tags %}
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    {% elif 'success' in message.tags %}
+                        <i class="fa-solid fa-circle-check"></i>
+                    {% else %}
+                        <i class="fa-solid fa-circle-info"></i>
+                    {% endif %}
+                    {{ message }}
+                    <button class="alert-close" onclick="this.parentElement.remove()" aria-label="Fechar">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<script src="{% static 'js/base.js' %}"></script>
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

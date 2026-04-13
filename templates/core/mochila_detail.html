@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mochila.nome }} — TI Armazém Paraíba{% endblock %}
+{% block nav_mochilas %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'mochila_list' %}">Mochilas</a>
+    <span class="sep">/</span>
+    <span class="current">{{ mochila.nome }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:48px;height:48px;background:rgba(59,130,246,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#60A5FA;font-size:1.2rem;border:1px solid rgba(59,130,246,.2);">
+                <i class="fa-solid fa-briefcase"></i>
+            </div>
+            <div>
+                <h1>{{ mochila.nome }}</h1>
+                <p>{{ mochila.mochilaitem_set.count }} equipamento(s) cadastrado(s)</p>
+            </div>
+        </div>
+    </div>
+    <div class="page-header-right">
+        <a href="{% url 'mochila_list' %}" class="btn btn-ghost">
+            <i class="fa-solid fa-arrow-left"></i> Voltar
+        </a>
+        {% if user_profile.pode_editar %}
+        <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-secondary">
+            <i class="fa-solid fa-pen"></i> Editar
+        </a>
+        <a href="{% url 'viagem_create' %}" class="btn btn-primary">
+            <i class="fa-solid fa-route"></i> Registrar Saída
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+    <!-- ITENS -->
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                <i class="fa-solid fa-screwdriver-wrench" style="color:var(--text-muted);margin-right:8px;"></i>
+                Equipamentos
+            </h2>
+            {% if user_profile.pode_editar %}
+            <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-ghost btn-sm">
+                <i class="fa-solid fa-pen"></i> Gerenciar
+            </a>
+            {% endif %}
+        </div>
+        {% if mochila.mochilaitem_set.all %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Equipamento</th>
+                        <th style="text-align:center;">Quantidade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for mi in mochila.mochilaitem_set.all %}
+                <tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:9px;">
+                            <div style="width:26px;height:26px;border-radius:6px;background:rgba(59,130,246,.1);display:flex;align-items:center;justify-content:center;color:#60A5FA;font-size:.65rem;">
+                                <i class="fa-solid fa-screwdriver-wrench"></i>
+                            </div>
+                            <span style="font-weight:500;">{{ mi.item.nome }}</span>
+                        </div>
+                    </td>
+                    <td style="text-align:center;">
+                        <span class="qty-badge">{{ mi.quantidade }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:40px 20px;">
+            <div class="icon"><i class="fa-solid fa-box-open"></i></div>
+            <h3>Mochila vazia</h3>
+            {% if user_profile.pode_editar %}
+            <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-primary" style="margin-top:8px;">
+                <i class="fa-solid fa-plus"></i> Adicionar Itens
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                <i class="fa-solid fa-clock-rotate-left" style="color:var(--text-muted);margin-right:8px;"></i>
+                Histórico de Uso
+            </h2>
+        </div>
+        {% if viagens %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Colaborador</th>
+                        <th>Loja</th>
+                        <th>Saída</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for v in viagens %}
+                <tr>
+                    <td class="muted mono">#{{ v.id }}</td>
+                    <td>{{ v.responsavel.get_full_name|default:v.responsavel.username }}</td>
+                    <td>{{ v.loja.nome }}</td>
+                    <td class="muted small">{{ v.data_saida|date:"d/m/Y" }}</td>
+                    <td>
+                        {% if v.status == 'andamento' %}
+                            <span class="badge badge-amber">Em andamento</span>
+                        {% else %}
+                            <span class="badge badge-green">Finalizada</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm">
+                            <i class="fa-solid fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:40px 20px;">
+            <div class="icon"><i class="fa-solid fa-route"></i></div>
+            <h3>Nenhuma viagem registrada</h3>
+            <p>Esta mochila ainda não foi utilizada.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

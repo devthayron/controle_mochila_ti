@@ -1,0 +1,7 @@
+Django>=5.1,<5.3
+whitenoise[brotli]>=6.7
+# Optional but recommended for production:
+# gunicorn>=22.0
+# psycopg[binary]>=3.2    # PostgreSQL driver
+# dj-database-url>=2.2    # parse DATABASE_URL env var
+# django-axes>=7.0         # brute-force login protection

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{% if editing %}Editar Usuário{% else %}Novo Usuário{% endif %} — TI Armazém Paraíba{% endblock %}
+{% block nav_usuarios %}active{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <a href="{% url 'usuario_list' %}">Usuários</a>
+    <span class="sep">/</span>
+    <span class="current">{% if editing %}Editar{% else %}Novo{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>{% if editing %}Editar Usuário{% else %}Novo Usuário{% endif %}</h1>
+        <p>{% if editing %}Atualize os dados e permissão do usuário{% else %}Crie um novo usuário e defina o nível de acesso{% endif %}</p>
+    </div>
+</div>
+
+<div class="card card-form" style="max-width:640px;">
+    <form method="post" class="form-layout" autocomplete="off">
+        {% csrf_token %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+                <label><i class="fa-solid fa-at" style="color:var(--text-muted);margin-right:6px;"></i>Nome de usuário</label>
+                {{ form.username }}
+                {% if form.username.errors %}<span class="form-error">{{ form.username.errors.0 }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:6px;"></i>E-mail</label>
+                {{ form.email }}
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-id-card" style="color:var(--text-muted);margin-right:6px;"></i>Nome</label>
+                {{ form.first_name }}
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-id-card" style="color:var(--text-muted);margin-right:6px;"></i>Sobrenome</label>
+                {{ form.last_name }}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label><i class="fa-solid fa-shield-halved" style="color:var(--text-muted);margin-right:6px;"></i>Nível de Acesso</label>
+            {{ form.nivel }}
+            <span style="font-size:.78rem;color:var(--text-muted);margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                <span><i class="fa-solid fa-shield-halved" style="color:var(--ap-red-light);"></i> Admin: acesso total</span>
+                &nbsp;|&nbsp;
+                <span><i class="fa-solid fa-user-tie" style="color:#C084FC;"></i> Supervisor: criar/editar/excluir</span>
+                &nbsp;|&nbsp;
+                <span><i class="fa-solid fa-user" style="color:#60A5FA;"></i> Usuário: somente leitura</span>
+            </span>
+        </div>
+
+        {% if editing %}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+                <label><i class="fa-solid fa-key" style="color:var(--text-muted);margin-right:6px;"></i>Nova Senha <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+                {{ form.new_password }}
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-key" style="color:var(--text-muted);margin-right:6px;"></i>Confirmar Nova Senha</label>
+                {{ form.new_password_confirm }}
+            </div>
+        </div>
+        {% else %}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>Senha <span style="font-size:.72rem;color:var(--text-muted);">(mín. 10 caracteres)</span></label>
+                {{ form.password }}
+                {% if form.password.errors %}<span class="form-error">{{ form.password.errors.0 }}</span>{% endif %}
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>Confirmar Senha</label>
+                {{ form.password_confirm }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-error">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <a href="{% url 'usuario_list' %}" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-{% if editing %}save{% else %}user-plus{% endif %}"></i>
+                {% if editing %}Atualizar Usuário{% else %}Criar Usuário{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

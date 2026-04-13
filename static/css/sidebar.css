@@ -1,0 +1,157 @@
+/* ─────────────────────────────────────────────────────────
+   sidebar.css — Sidebar de navegação lateral
+   ───────────────────────────────────────────────────────── */
+
+.sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0;
+    z-index: 100;
+    transition: transform .3s ease;
+}
+
+/* ─── Logo ─────────────────────────────────────────────── */
+.sidebar-logo {
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.logo-box {
+    width: 38px;
+    height: 38px;
+    background: var(--ap-red);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+.logo-text strong {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: .5px;
+}
+.logo-text span {
+    font-size: .68rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    letter-spacing: .3px;
+}
+
+/* ─── Nav ──────────────────────────────────────────────── */
+.sidebar-nav {
+    flex: 1;
+    padding: 16px 10px;
+    overflow-y: auto;
+}
+
+.nav-section-label {
+    display: block;
+    font-size: .63rem;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 16px 10px 8px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: .875rem;
+    font-weight: 500;
+    transition: background .15s, color .15s;
+    margin-bottom: 2px;
+}
+.nav-item i {
+    width: 18px;
+    text-align: center;
+    font-size: .85rem;
+    flex-shrink: 0;
+}
+.nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.nav-item.active {
+    background: rgba(200,16,46,.15);
+    color: var(--ap-red-light);
+}
+.nav-item.active i { color: var(--ap-red); }
+
+.nav-badge {
+    margin-left: auto;
+    background: var(--ap-red);
+    color: #fff;
+    font-size: .6rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+}
+
+/* ─── Footer ───────────────────────────────────────────── */
+.sidebar-footer {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--ap-red), var(--accent-purple));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.user-info { flex: 1; overflow: hidden; }
+.user-info strong {
+    display: block;
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.user-info span {
+    font-size: .7rem;
+    color: var(--text-muted);
+}
+
+.sidebar-footer a {
+    color: var(--text-muted);
+    font-size: .85rem;
+    transition: color .15s;
+}
+.sidebar-footer a:hover { color: var(--ap-red-light); }
