@@ -10,50 +10,404 @@
     <span class="current">{% if editing %}Editar{% else %}Nova{% endif %}</span>
 {% endblock %}
 
+{% block extra_head %}
+<style>
+.item-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 420px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding-right: 4px;
+}
+.item-picker::-webkit-scrollbar { width: 5px; }
+.item-picker::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 10px; }
+
+.item-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    transition: border-color .15s, background .15s;
+    cursor: pointer;
+    user-select: none;
+}
+.item-picker-row:hover {
+    border-color: var(--border-light);
+    background: var(--bg-hover);
+}
+.item-picker-row.selected {
+    border-color: rgba(59,130,246,.45);
+    background: rgba(59,130,246,.06);
+}
+
+.item-picker-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border-light);
+    background: var(--bg-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all .15s;
+    color: transparent;
+    font-size: .65rem;
+}
+.item-picker-row.selected .item-picker-check {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+}
+
+.item-picker-name {
+    flex: 1;
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.item-qty-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s;
+}
+.item-picker-row.selected .item-qty-wrap {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.qty-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: .75rem;
+    transition: background .12s, color .12s;
+    flex-shrink: 0;
+}
+.qty-btn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.qty-btn:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.qty-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.qty-input {
+    width: 38px !important;
+    height: 26px !important;
+    padding: 0 !important;
+    text-align: center !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: .8rem !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-light) !important;
+    border-top: 1px solid var(--border-light) !important;
+    border-bottom: 1px solid var(--border-light) !important;
+}
+.qty-input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: var(--accent-blue) !important;
+    z-index: 1;
+    position: relative;
+}
+
+/* resumo lateral */
+.mochila-summary {
+    position: sticky;
+    top: 0;
+}
+.summary-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+.summary-list::-webkit-scrollbar { width: 5px; }
+.summary-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+.summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    font-size: .82rem;
+}
+.summary-row-name { flex: 1; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.summary-row-qty  { font-family: 'DM Mono', monospace; font-size: .78rem; color: var(--text-muted); flex-shrink: 0; }
+
+.summary-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px 16px;
+    color: var(--text-muted);
+    font-size: .8rem;
+    text-align: center;
+}
+
+.picker-search {
+    position: relative;
+    margin-bottom: 10px;
+}
+.picker-search i {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: .75rem;
+    pointer-events: none;
+}
+.picker-search input {
+    padding-left: 30px !important;
+    height: 34px !important;
+    font-size: .82rem !important;
+}
+
+.form-layout-two {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+    align-items: start;
+}
+@media (max-width: 720px) {
+    .form-layout-two { grid-template-columns: 1fr; }
+    .mochila-summary { position: static; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header">
     <div class="page-header-left">
         <h1>{% if editing %}Editar Mochila{% else %}Nova Mochila{% endif %}</h1>
-        <p>{% if editing %}Atualize o kit de equipamentos{% else %}Crie um kit de equipamentos{% endif %}</p>
+        <p>{% if editing %}Atualize o kit de equipamentos e quantidades{% else %}Crie um kit de equipamentos com quantidades{% endif %}</p>
+    </div>
+    <div class="page-header-right">
+        <a href="{% url 'mochila_list' %}" class="btn btn-ghost">
+            <i class="fa-solid fa-arrow-left"></i> Cancelar
+        </a>
     </div>
 </div>
 
-<div class="card card-form" style="max-width:640px;">
-    <form method="post" class="form-layout">
-        {% csrf_token %}
+<form method="post" id="mochila-form">
+    {% csrf_token %}
 
-        <div class="form-group">
-            <label for="{{ form.nome.id_for_label }}">
-                <i class="fa-solid fa-briefcase" style="color:var(--text-muted);margin-right:6px;"></i>
-                Nome da mochila
-            </label>
-            {{ form.nome }}
-            {% if form.nome.errors %}<span class="form-error">{{ form.nome.errors.0 }}</span>{% endif %}
+    <div class="form-layout-two">
+
+        <!-- COLUNA PRINCIPAL -->
+        <div style="display:flex;flex-direction:column;gap:16px;">
+
+            <!-- nome -->
+            <div class="card" style="padding:20px;">
+                <div class="form-group">
+                    <label for="{{ form.nome.id_for_label }}">
+                        <i class="fa-solid fa-briefcase" style="color:var(--text-muted);margin-right:6px;"></i>
+                        Nome da mochila
+                    </label>
+                    {{ form.nome }}
+                    {% if form.nome.errors %}
+                        <span class="form-error" style="font-size:.75rem;color:var(--ap-red-light);">{{ form.nome.errors.0 }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- seletor de itens -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>
+                        <i class="fa-solid fa-screwdriver-wrench" style="color:var(--text-muted);margin-right:8px;"></i>
+                        Itens / Equipamentos
+                    </h2>
+                    <span id="selected-count" style="font-size:.78rem;color:var(--text-muted);">0 selecionado(s)</span>
+                </div>
+                <div style="padding:16px;">
+                    <div class="picker-search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="item-search" placeholder="Filtrar itens…">
+                    </div>
+                    <div class="item-picker" id="item-picker">
+                        {% for item in todos_itens %}
+                        <div class="item-picker-row {% if item.id|stringformat:'s' in itens_selecionados %}selected{% endif %}"
+                             data-id="{{ item.id }}"
+                             data-nome="{{ item.nome }}"
+                             onclick="toggleItem(this)">
+
+                            <div class="item-picker-check">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+
+                            <span class="item-picker-name">{{ item.nome }}</span>
+
+                            <div class="item-qty-wrap" onclick="event.stopPropagation()">
+                                <button type="button" class="qty-btn" onclick="changeQty(this, -1)">
+                                    <i class="fa-solid fa-minus"></i>
+                                </button>
+                                <input
+                                    type="number"
+                                    class="qty-input"
+                                    name="qty_{{ item.id }}"
+                                    value="{{ item.quantidade_atual|default:1 }}"
+                                    min="1"
+                                    max="99"
+                                    onchange="updateSummary()"
+                                    oninput="updateSummary()">
+                                <button type="button" class="qty-btn" onclick="changeQty(this, 1)">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+
+                            <!-- hidden checkbox para o form -->
+                            <input type="checkbox"
+                                   name="item_ids"
+                                   value="{{ item.id }}"
+                                   style="display:none;"
+                                   {% if item.id|stringformat:'s' in itens_selecionados %}checked{% endif %}>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state" style="padding:40px 20px;">
+                            <div class="icon"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                            <h3>Nenhum item cadastrado</h3>
+                            <p>Cadastre itens antes de criar mochilas.</p>
+                            <a href="{% url 'item_create' %}" class="btn btn-primary" style="margin-top:8px;">
+                                <i class="fa-solid fa-plus"></i> Novo Item
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- ações -->
+            <div style="display:flex;justify-content:flex-end;gap:10px;">
+                <a href="{% url 'mochila_list' %}" class="btn btn-ghost">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-save"></i>
+                    {% if editing %}Salvar Alterações{% else %}Criar Mochila{% endif %}
+                </button>
+            </div>
+
         </div>
 
-        <div class="form-group">
-            <label for="{{ form.itens.id_for_label }}">
-                <i class="fa-solid fa-screwdriver-wrench" style="color:var(--text-muted);margin-right:6px;"></i>
-                Itens / Equipamentos
-            </label>
-            <span style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:8px;">
-                <i class="fa-solid fa-circle-info"></i>
-                Segure Ctrl (ou Cmd no Mac) para selecionar múltiplos itens
-            </span>
-            {{ form.itens }}
-            {% if form.itens.errors %}<span class="form-error">{{ form.itens.errors.0 }}</span>{% endif %}
+        <!-- COLUNA RESUMO -->
+        <div class="mochila-summary">
+            <div class="card">
+                <div class="card-header">
+                    <h2>
+                        <i class="fa-solid fa-list-check" style="color:var(--text-muted);margin-right:8px;"></i>
+                        Resumo
+                    </h2>
+                </div>
+                <div style="padding:14px;">
+                    <ul class="summary-list" id="summary-list">
+                        <!-- preenchido pelo JS -->
+                    </ul>
+                    <div class="summary-empty" id="summary-empty">
+                        <i class="fa-solid fa-briefcase" style="font-size:1.4rem;margin-bottom:4px;"></i>
+                        Nenhum item selecionado
+                    </div>
+                    <div id="summary-total" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);font-size:.78rem;color:var(--text-muted);display:flex;justify-content:space-between;">
+                        <span>Total de tipos</span>
+                        <span id="summary-count" style="font-family:'DM Mono',monospace;font-weight:600;color:var(--text-secondary);"></span>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="form-actions">
-            <a href="{% url 'mochila_list' %}" class="btn btn-ghost">
-                <i class="fa-solid fa-arrow-left"></i> Cancelar
-            </a>
-            <button type="submit" class="btn btn-primary">
-                <i class="fa-solid fa-save"></i> Salvar Mochila
-            </button>
-        </div>
-    </form>
-</div>
+    </div>
+</form>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleItem(row) {
+    row.classList.toggle('selected');
+    const cb = row.querySelector('input[type="checkbox"]');
+    cb.checked = row.classList.contains('selected');
+    updateSummary();
+}
+
+function changeQty(btn, delta) {
+    const wrap  = btn.closest('.item-qty-wrap');
+    const input = wrap.querySelector('.qty-input');
+    let val = parseInt(input.value) || 1;
+    val = Math.max(1, Math.min(99, val + delta));
+    input.value = val;
+    updateSummary();
+}
+
+function updateSummary() {
+    const rows    = document.querySelectorAll('.item-picker-row.selected');
+    const list    = document.getElementById('summary-list');
+    const empty   = document.getElementById('summary-empty');
+    const total   = document.getElementById('summary-total');
+    const count   = document.getElementById('summary-count');
+    const selCount = document.getElementById('selected-count');
+
+    selCount.textContent = rows.length + ' selecionado(s)';
+
+    if (!rows.length) {
+        list.innerHTML  = '';
+        empty.style.display  = 'flex';
+        total.style.display  = 'none';
+        return;
+    }
+
+    empty.style.display = 'none';
+    total.style.display = 'flex';
+    count.textContent   = rows.length;
+
+    list.innerHTML = Array.from(rows).map(row => {
+        const nome = row.dataset.nome;
+        const qty  = row.querySelector('.qty-input').value || 1;
+        return `
+            <li class="summary-row">
+                <span class="summary-row-name">${nome}</span>
+                <span class="summary-row-qty">×${qty}</span>
+            </li>`;
+    }).join('');
+}
+
+// filtro de busca
+document.getElementById('item-search').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.item-picker-row').forEach(row => {
+        const match = row.dataset.nome.toLowerCase().includes(q);
+        row.style.display = match ? '' : 'none';
+    });
+});
+
+// init
+updateSummary();
+</script>
 {% endblock %}

@@ -1,5 +1,10 @@
 """
 services/viagem_service.py — Regras de negócio de Viagem.
+
+Responsabilidades:
+- criar_viagem: cria viagem + checklist (única fonte de verdade)
+- finalizar_viagem: encerra viagem em andamento
+- salvar_checklist: atualiza itens do checklist
 """
 
 from __future__ import annotations
@@ -32,7 +37,7 @@ class MochilaEmUso(ValueError):
 @transaction.atomic
 def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viagem:
     """
-    Cria uma nova viagem e gera o checklist automaticamente.
+    Cria viagem + checklist automaticamente.
     Usa select_for_update para evitar concorrência de mochila duplicada.
 
     Raises:
@@ -50,7 +55,8 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
     if not mochila.ativo:
         raise ValueError("A mochila selecionada está inativa.")
 
-    if not mochila.mochilaitem_set.exists():
+    itens = list(mochila.mochilaitem_set.select_related("item").all())
+    if not itens:
         raise ValueError("Não é possível iniciar uma viagem com mochila vazia.")
 
     if Viagem.objects.filter(mochila=mochila, status="andamento").exists():
@@ -66,7 +72,20 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
         status="andamento",
     )
 
-    logger.info("Viagem #%s criada por %s", viagem.pk, user)
+    # Checklist criado aqui — única fonte de verdade
+    ChecklistItem.objects.bulk_create([
+        ChecklistItem(
+            viagem=viagem,
+            item=mi.item,
+            quantidade=mi.quantidade,
+        )
+        for mi in itens
+    ])
+
+    logger.info(
+        "Viagem #%s criada por %s — %d item(ns) no checklist",
+        viagem.pk, user.username, len(itens),
+    )
     return viagem
 
 
@@ -90,7 +109,7 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
     viagem.data_retorno = timezone.now()
     viagem.save(update_fields=["status", "data_retorno"])
 
-    logger.info("Viagem #%s finalizada por %s", viagem.pk, user)
+    logger.info("Viagem #%s finalizada por %s", viagem.pk, user.username)
     return viagem
 
 
@@ -126,7 +145,7 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict) -> list[Checklis
 
     logger.info(
         "Checklist da viagem #%s atualizado por %s (%d itens)",
-        viagem.pk, user, len(to_update),
+        viagem.pk, user.username, len(to_update),
     )
     return to_update
 

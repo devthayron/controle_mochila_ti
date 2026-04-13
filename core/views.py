@@ -1,5 +1,5 @@
 """
-views.py — Apenas HTTP. Sem lógica de negócio.
+views.py — Apenas orquestração HTTP. Sem lógica de negócio.
 """
 
 import json
@@ -10,6 +10,7 @@ from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
@@ -54,18 +55,23 @@ logger = logging.getLogger("core")
 
 
 # ──────────────────────────────────────────────
-# AUDIT LOG HELPER
+# AUDIT LOG HELPER — CORRIGIDO
 # ──────────────────────────────────────────────
 
-def _log(user, obj, flag, message=""):
-    LogEntry.objects.log_actions(
-        user_id=user.pk,
-        queryset=[obj],
-        action_flag=flag,
-        change_message=message,
-        single_object=True,
-    )
 
+
+def _log(user, obj, flag, message=""):
+    if not user or not user.pk:
+        return
+
+    LogEntry.objects.create(
+        user_id=user.pk,
+        content_type_id=ContentType.objects.get_for_model(obj).pk,
+        object_id=str(obj.pk),
+        object_repr=str(obj)[:200],
+        action_flag=flag,
+        change_message=message[:255],
+    )
 
 def _shim(u):
     from .mixins import _LegacyProfileShim
@@ -109,11 +115,6 @@ class CustomLogoutView(LogoutView):
 # ──────────────────────────────────────────────
 
 class TrocarSenhaView(View):
-    """
-    Acessível apenas por usuários autenticados.
-    O middleware já garante o redirecionamento quando must_change_password=True.
-    Esta view também serve para troca voluntária futura.
-    """
     template_name = "core/trocar_senha.html"
 
     def _ctx(self, request, form):
@@ -150,7 +151,6 @@ class TrocarSenhaView(View):
             messages.error(request, str(e))
             return render(request, self.template_name, self._ctx(request, form))
 
-        # Mantém sessão ativa com a nova senha
         update_session_auth_hash(request, request.user)
         messages.success(request, "Senha alterada com sucesso!")
         return redirect("dashboard")
@@ -351,50 +351,126 @@ class MochilaDetailView(PermContextMixin, DetailView):
         return context
 
 
+"""
+PATCH para views.py — substitua apenas as classes MochilaCreateView e MochilaUpdateView
+e adicione o helper _parse_itens_post logo abaixo dos imports.
+"""
+
+# ──────────────────────────────────────────────
+# HELPER — lê item_ids + qty_<id> do POST
+# ──────────────────────────────────────────────
+
+def _parse_itens_post(post_data) -> dict[int, int]:
+    """
+    Lê os campos do novo formulário de mochila:
+      - item_ids (lista de IDs selecionados)
+      - qty_<id> (quantidade de cada item)
+
+    Retorna: {item_id: quantidade}
+    """
+    item_ids = post_data.getlist("item_ids")
+    result   = {}
+    for raw_id in item_ids:
+        try:
+            item_id = int(raw_id)
+            qty     = int(post_data.get(f"qty_{item_id}", 1))
+            qty     = max(1, min(99, qty))   # clamp seguro
+            result[item_id] = qty
+        except (ValueError, TypeError):
+            continue
+    return result
+
+
+def _mochila_context(mochila=None) -> dict:
+    """
+    Monta contexto comum para criação e edição:
+      - todos_itens: itens ativos com quantidade_atual injetada
+      - itens_selecionados: set de IDs já escolhidos (como strings para o template)
+    """
+    from .models import Item, MochilaItem
+
+    itens_qs = Item.objects.filter(ativo=True).order_by("nome")
+
+    # quantidades atuais (só na edição)
+    qtd_map: dict[int, int] = {}
+    if mochila:
+        qtd_map = {
+            mi.item_id: mi.quantidade
+            for mi in MochilaItem.objects.filter(mochila=mochila)
+        }
+
+    # injeta atributo quantidade_atual em cada item
+    todos_itens = []
+    for item in itens_qs:
+        item.quantidade_atual = qtd_map.get(item.id, 1)
+        todos_itens.append(item)
+
+    itens_selecionados = {str(k) for k in qtd_map.keys()}
+
+    return {
+        "todos_itens":       todos_itens,
+        "itens_selecionados": itens_selecionados,
+    }
+
+
+# ──────────────────────────────────────────────
+# MOCHILAS — CREATE
+# ──────────────────────────────────────────────
+
 class MochilaCreateView(SupervisorRequiredMixin, CreateView):
-    model = Mochila
+    model      = Mochila
     form_class = MochilaForm
     template_name = "core/mochila_form.html"
-    success_url = reverse_lazy("mochila_list")
+    success_url   = reverse_lazy("mochila_list")
 
     def get_context_data(self, **kwargs):
-        return {**super().get_context_data(**kwargs), "editing": False}
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_mochila_context())
+        ctx["editing"] = False
+        return ctx
 
     def form_valid(self, form):
+        itens_qtd = _parse_itens_post(self.request.POST)
+
         with transaction.atomic():
-            self.object = form.save(commit=False)
-            self.object.save()
-            MochilaItem.objects.filter(mochila=self.object).delete()
+            self.object = form.save()
             MochilaItem.objects.bulk_create([
-                MochilaItem(mochila=self.object, item=item, quantidade=1)
-                for item in form.cleaned_data["itens"]
+                MochilaItem(mochila=self.object, item_id=item_id, quantidade=qty)
+                for item_id, qty in itens_qtd.items()
             ])
+
         _log(self.request.user, self.object, ADDITION, "Mochila criada")
         messages.success(self.request, "Mochila criada com sucesso!")
         return redirect(self.success_url)
 
 
+# ──────────────────────────────────────────────
+# MOCHILAS — UPDATE
+# ──────────────────────────────────────────────
+
 class MochilaUpdateView(SupervisorRequiredMixin, UpdateView):
-    model = Mochila
+    model      = Mochila
     form_class = MochilaForm
     template_name = "core/mochila_form.html"
-    success_url = reverse_lazy("mochila_list")
-
-    def get_initial(self):
-        return {**super().get_initial(), "itens": self.object.itens.all()}
+    success_url   = reverse_lazy("mochila_list")
 
     def get_context_data(self, **kwargs):
-        return {**super().get_context_data(**kwargs), "editing": True, "object": self.object}
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(_mochila_context(mochila=self.object))
+        ctx["editing"] = True
+        return ctx
 
     def form_valid(self, form):
+        itens_qtd = _parse_itens_post(self.request.POST)
+
         with transaction.atomic():
-            self.object = form.save(commit=False)
-            self.object.save()
+            self.object = form.save()
             MochilaItem.objects.filter(mochila=self.object).delete()
             MochilaItem.objects.bulk_create([
-                MochilaItem(mochila=self.object, item=item, quantidade=1)
-                for item in form.cleaned_data["itens"]
+                MochilaItem(mochila=self.object, item_id=item_id, quantidade=qty)
+                for item_id, qty in itens_qtd.items()
             ])
+
         _log(self.request.user, self.object, CHANGE, "Mochila editada")
         messages.success(self.request, "Mochila atualizada com sucesso!")
         return redirect(self.success_url)
@@ -425,7 +501,7 @@ class MochilaDeleteView(SupervisorRequiredMixin, View):
 
 
 # ──────────────────────────────────────────────
-# ITENS
+# ITENS — FIX: filtra ativo=True
 # ──────────────────────────────────────────────
 
 class ItemListView(PermContextMixin, ListView):
@@ -434,7 +510,8 @@ class ItemListView(PermContextMixin, ListView):
     context_object_name = "itens"
 
     def get_queryset(self):
-        return Item.objects.annotate(num_mochilas=Count("mochilas")).order_by("nome")
+        # FIX: exibe apenas itens ativos
+        return Item.objects.filter(ativo=True).annotate(num_mochilas=Count("mochilas")).order_by("nome")
 
 
 class ItemCreateView(SupervisorRequiredMixin, CreateView):
@@ -650,8 +727,6 @@ class UsuarioEditView(AdminRequiredMixin, View):
 
 @method_decorator(require_POST, name="dispatch")
 class UsuarioResetSenhaView(AdminRequiredMixin, View):
-    """Somente admin. Redefine senha para o padrão e força troca."""
-
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
         try:

@@ -1,7 +1,12 @@
+"""
+forms.py — Apenas validação de input HTTP.
+"""
+
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from .models import Mochila, Item, Viagem, Loja
+
+from .models import Item, Loja, Mochila, Viagem
 
 NIVEL_CHOICES = [
     ("usuario",    "Usuário"),
@@ -11,15 +16,14 @@ NIVEL_CHOICES = [
 
 
 class MochilaForm(forms.ModelForm):
-    itens = forms.ModelMultipleChoiceField(
-        queryset=Item.objects.all().order_by("nome"),
-        widget=forms.SelectMultiple(attrs={"class": "multi-select"}),
-        label="Itens / Equipamentos",
-    )
-
+    """
+    Apenas valida o nome da mochila.
+    Itens e quantidades são gerenciados pela view via POST (item_ids + qty_<id>),
+    não por este form — isso permite quantidades individuais por item.
+    """
     class Meta:
         model  = Mochila
-        fields = ["nome", "itens"]
+        fields = ["nome"]
         widgets = {
             "nome": forms.TextInput(attrs={"class": "form-input", "placeholder": "Nome da mochila"})
         }
@@ -37,8 +41,9 @@ class ViagemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["loja"].queryset    = Loja.objects.filter(ativo=True).order_by("nome")
-        self.fields["mochila"].queryset = Mochila.objects.filter(ativo=True).order_by("nome")
+        self.fields["loja"].queryset        = Loja.objects.filter(ativo=True).order_by("nome")
+        self.fields["mochila"].queryset     = Mochila.objects.filter(ativo=True).order_by("nome")
+        self.fields["responsavel"].queryset = User.objects.filter(is_active=True).order_by("username")
 
 
 class LojaForm(forms.ModelForm):
@@ -59,12 +64,7 @@ class ItemForm(forms.ModelForm):
         }
 
 
-# ─── CRIAÇÃO DE USUÁRIO — sem campo senha ───────────────────────
 class UsuarioCreateForm(forms.ModelForm):
-    """
-    Admin preenche apenas username, nome e nível.
-    Senha padrão é definida automaticamente no service.
-    """
     nivel = forms.ChoiceField(
         label="Nível de Acesso",
         choices=NIVEL_CHOICES,
@@ -83,12 +83,7 @@ class UsuarioCreateForm(forms.ModelForm):
         }
 
 
-# ─── EDIÇÃO DE USUÁRIO — sem campo senha ────────────────────────
 class UsuarioEditForm(forms.ModelForm):
-    """
-    Edita apenas dados e nível. Senha nunca é alterada aqui.
-    Reset de senha é operação separada (somente admin).
-    """
     nivel = forms.ChoiceField(
         label="Nível de Acesso",
         choices=NIVEL_CHOICES,
@@ -106,7 +101,6 @@ class UsuarioEditForm(forms.ModelForm):
         }
 
 
-# ─── TROCA DE SENHA (primeiro acesso) ───────────────────────────
 class TrocarSenhaForm(forms.Form):
     senha_atual = forms.CharField(
         label="Senha atual",

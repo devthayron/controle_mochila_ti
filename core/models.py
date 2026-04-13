@@ -1,5 +1,12 @@
-from django.db import models
+"""
+models.py — Apenas dados, relações e validações simples.
+
+Regra: sem lógica de negócio aqui.
+A criação do checklist é responsabilidade do viagem_service.criar_viagem().
+"""
+
 from django.contrib.auth.models import User
+from django.db import models
 from django.utils import timezone
 
 
@@ -119,21 +126,12 @@ class Viagem(models.Model):
             ("finalizar_viagem",  "Pode finalizar viagens"),
         ]
 
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        if is_new and not self.checklist.exists():
-            ChecklistItem.objects.bulk_create([
-                ChecklistItem(
-                    viagem=self,
-                    item=mi.item,
-                    quantidade=mi.quantidade,
-                )
-                for mi in self.mochila.mochilaitem_set.all()
-            ])
-
     def __str__(self):
         return f"Viagem #{self.id} — {self.loja}"
+
+    # NOTA: checklist NÃO é criado aqui.
+    # Responsabilidade do viagem_service.criar_viagem().
+    # Isso mantém o model limpo e testável isoladamente.
 
 
 # ───────────────── CHECKLIST ─────────────────
