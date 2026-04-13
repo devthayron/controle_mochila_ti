@@ -30,8 +30,9 @@ from .forms import (
     UsuarioCreateForm, UsuarioEditForm,
 )
 from .mixins import NivelMixin, SupervisorRequiredMixin, AdminRequiredMixin, get_user_profile
-from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
+from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
+
 import logging
 
 logger = logging.getLogger("core")
@@ -40,11 +41,9 @@ logger = logging.getLogger("core")
 def log_action(user, obj, action_flag, message=""):
     ct = ContentType.objects.get_for_model(obj)
 
-    LogEntry.objects.log_action(
+    LogEntry.objects.log_actions(
         user_id=user.pk,
-        content_type_id=ct.pk,
-        object_id=obj.pk,
-        object_repr=str(obj)[:200],
+        queryset=[obj],  
         action_flag=action_flag,
         change_message=message,
     )
