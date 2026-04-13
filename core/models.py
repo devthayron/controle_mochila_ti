@@ -1,9 +1,19 @@
+"""
+models.py — Modelos com Meta.permissions para permissões customizadas.
+
+Permissões customizadas são registradas via Meta.permissions e
+ficam disponíveis para atribuição a grupos via setup_groups.
+"""
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
 
 # ───────────────── PERFIL / PERMISSÕES ─────────────────
+# Mantido para retrocompatibilidade com dados existentes.
+# A lógica de permissão foi migrada para Groups + Permissions.
+# Este modelo pode ser removido em uma release futura após migração completa.
 class UserProfile(models.Model):
     NIVEL_CHOICES = [
         ("admin",      "Administrador"),
@@ -21,6 +31,7 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.get_nivel_display()})"
 
+    # Propriedades mantidas para retrocompatibilidade
     @property
     def is_admin(self):
         return self.nivel == "admin"
@@ -61,7 +72,6 @@ class Loja(models.Model):
 class Item(models.Model):
     nome       = models.CharField(max_length=100, unique=True)
     criado_em  = models.DateTimeField(auto_now_add=True)
-    
 
     class Meta:
         ordering            = ["nome"]
@@ -123,11 +133,16 @@ class Viagem(models.Model):
         ordering            = ["-data_saida"]
         verbose_name        = "Viagem"
         verbose_name_plural = "Viagens"
+        permissions = [
+            # Permissões custom — atribuídas via setup_groups
+            ("supervisor_access", "Acesso de Supervisor (pode editar)"),
+            ("admin_access",      "Acesso de Administrador (acesso total)"),
+            ("finalizar_viagem",  "Pode finalizar viagens"),
+        ]
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)
-        # Only create checklist items for brand-new trips
         if is_new and not self.checklist.exists():
             ChecklistItem.objects.bulk_create([
                 ChecklistItem(

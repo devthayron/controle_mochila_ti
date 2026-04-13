@@ -21,4 +21,4 @@ Thumbs.db
 .env.*
 !.env.example
 DEPLOY.md
-
+ARCHITECTURE.md
