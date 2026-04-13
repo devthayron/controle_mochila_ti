@@ -35,6 +35,7 @@
                     <th>Nome</th>
                     <th>E-mail</th>
                     <th>Nível</th>
+                    <th>Status senha</th>
                     <th></th>
                 </tr>
             </thead>
@@ -44,8 +45,8 @@
                 <td>
                     <div style="display:flex;align-items:center;gap:10px;">
                         <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;
-                            {% if u.profile.nivel == 'admin' %}background:rgba(200,16,46,.15);color:var(--ap-red-light);
-                            {% elif u.profile.nivel == 'supervisor' %}background:rgba(168,85,247,.15);color:#C084FC;
+                            {% if u.is_superuser %}background:rgba(200,16,46,.15);color:var(--ap-red-light);
+                            {% elif 'Supervisor' in u.groups.all|join:',' %}background:rgba(168,85,247,.15);color:#C084FC;
                             {% else %}background:rgba(59,130,246,.15);color:#60A5FA;{% endif %}">
                             {{ u.username|slice:":1"|upper }}
                         </div>
@@ -58,29 +59,57 @@
                 <td>{{ u.get_full_name|default:"—" }}</td>
                 <td class="muted">{{ u.email|default:"—" }}</td>
                 <td>
-                    {% if u.profile.nivel == 'admin' %}
+                    {% if u.is_superuser %}
                         <span class="badge" style="background:rgba(200,16,46,.12);color:var(--ap-red-light);">
                             <i class="fa-solid fa-shield-halved"></i> Admin
                         </span>
-                    {% elif u.profile.nivel == 'supervisor' %}
-                        <span class="badge" style="background:rgba(168,85,247,.12);color:#C084FC;">
-                            <i class="fa-solid fa-user-tie"></i> Supervisor
+                    {% else %}
+                        {% for group in u.groups.all %}
+                            {% if group.name == 'Supervisor' %}
+                                <span class="badge" style="background:rgba(168,85,247,.12);color:#C084FC;">
+                                    <i class="fa-solid fa-user-tie"></i> Supervisor
+                                </span>
+                            {% elif group.name == 'Usuário' %}
+                                <span class="badge" style="background:rgba(59,130,246,.12);color:#60A5FA;">
+                                    <i class="fa-solid fa-user"></i> Usuário
+                                </span>
+                            {% endif %}
+                        {% empty %}
+                            <span class="badge badge-muted">Sem grupo</span>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.password_policy.must_change_password %}
+                        <span class="badge badge-amber">
+                            <i class="fa-solid fa-clock"></i> Troca pendente
                         </span>
                     {% else %}
-                        <span class="badge" style="background:rgba(59,130,246,.12);color:#60A5FA;">
-                            <i class="fa-solid fa-user"></i> Usuário
+                        <span class="badge badge-green">
+                            <i class="fa-solid fa-check"></i> OK
                         </span>
                     {% endif %}
                 </td>
                 <td>
-                    <div style="display:flex;gap:6px;">
+                    <div style="display:flex;gap:6px;align-items:center;">
                         <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
                             <i class="fa-solid fa-pen"></i>
                         </a>
+                        <!-- Reset de senha: somente admin, nunca para si mesmo -->
                         {% if u != request.user %}
-                        <form method="post" action="{% url 'usuario_delete' u.pk %}" onsubmit="return confirm('Excluir o usuário {{ u.username }}?')">
+                        <form method="post" action="{% url 'usuario_reset_senha' u.pk %}"
+                              onsubmit="return confirm('Redefinir senha de {{ u.username }} para o padrão?')">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-ghost btn-sm" title="Excluir" style="color:var(--ap-red-light);">
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Redefinir senha"
+                                    style="color:var(--accent-amber);">
+                                <i class="fa-solid fa-key"></i>
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'usuario_delete' u.pk %}"
+                              onsubmit="return confirm('Excluir o usuário {{ u.username }}?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm" title="Excluir"
+                                    style="color:var(--ap-red-light);">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                         </form>
@@ -113,7 +142,7 @@
             </div>
             <div>
                 <div style="font-weight:600;margin-bottom:2px;">Administrador</div>
-                <div style="font-size:.8rem;color:var(--text-secondary);">Acesso total + painel admin + gerenciar usuários</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">Acesso total + gerenciar usuários + resetar senhas</div>
             </div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">
@@ -122,7 +151,7 @@
             </div>
             <div>
                 <div style="font-weight:600;margin-bottom:2px;">Supervisor</div>
-                <div style="font-size:.8rem;color:var(--text-secondary);">Criar, editar e excluir registros. Sem acesso ao admin.</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">Criar, editar e excluir registros. Sem acesso a senhas.</div>
             </div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start;">

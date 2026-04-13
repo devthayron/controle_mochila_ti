@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Trocar Senha — TI Armazém Paraíba{% endblock %}
+
+{% block breadcrumb %}
+    <span class="sep">/</span>
+    <span class="current">Trocar Senha</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:460px;margin:40px auto;">
+
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                <i class="fa-solid fa-key" style="color:var(--ap-red);margin-right:8px;"></i>
+                Troca de Senha Obrigatória
+            </h2>
+        </div>
+
+        <div style="padding:24px;">
+            <div class="alert alert-info" style="margin-bottom:24px;">
+                <i class="fa-solid fa-circle-info"></i>
+                Por segurança, você precisa definir uma nova senha antes de continuar.
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert" style="margin-bottom:16px;">
+                    {% if 'error' in message.tags %}
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                    {% else %}
+                        <i class="fa-solid fa-circle-check"></i>
+                    {% endif %}
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" class="form-layout" autocomplete="off">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label>
+                        <i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>
+                        Senha atual
+                    </label>
+                    {{ form.senha_atual }}
+                    {% if form.senha_atual.errors %}
+                        <span class="form-error">{{ form.senha_atual.errors.0 }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>
+                        Nova senha
+                        <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;">(mín. 8 caracteres)</span>
+                    </label>
+                    {{ form.nova_senha }}
+                    {% if form.nova_senha.errors %}
+                        <span class="form-error">{{ form.nova_senha.errors.0 }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>
+                        Confirmar nova senha
+                    </label>
+                    {{ form.nova_senha_confirm }}
+                    {% if form.nova_senha_confirm.errors %}
+                        <span class="form-error">{{ form.nova_senha_confirm.errors.0 }}</span>
+                    {% endif %}
+                </div>
+
+                {% if form.non_field_errors %}
+                <div class="alert alert-error">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    {{ form.non_field_errors.0 }}
+                </div>
+                {% endif %}
+
+                <div class="form-actions" style="margin-top:8px;">
+                    <button type="submit" class="btn btn-primary" style="width:100%;">
+                        <i class="fa-solid fa-check"></i> Definir nova senha
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -14,11 +14,17 @@
 <div class="page-header">
     <div class="page-header-left">
         <h1>{% if editing %}Editar Usuário{% else %}Novo Usuário{% endif %}</h1>
-        <p>{% if editing %}Atualize os dados e permissão do usuário{% else %}Crie um novo usuário e defina o nível de acesso{% endif %}</p>
+        <p>
+            {% if editing %}
+                Atualize os dados e o nível de acesso.
+            {% else %}
+                O usuário receberá a senha padrão e deverá trocá-la no primeiro login.
+            {% endif %}
+        </p>
     </div>
 </div>
 
-<div class="card card-form" style="max-width:640px;">
+<div class="card card-form" style="max-width:580px;">
     <form method="post" class="form-layout" autocomplete="off">
         {% csrf_token %}
 
@@ -29,7 +35,7 @@
                 {% if form.username.errors %}<span class="form-error">{{ form.username.errors.0 }}</span>{% endif %}
             </div>
             <div class="form-group">
-                <label><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:6px;"></i>E-mail</label>
+                <label><i class="fa-solid fa-envelope" style="color:var(--text-muted);margin-right:6px;"></i>E-mail <span style="font-weight:400;color:var(--text-muted)">(opcional)</span></label>
                 {{ form.email }}
             </div>
             <div class="form-group">
@@ -54,28 +60,10 @@
             </span>
         </div>
 
-        {% if editing %}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <div class="form-group">
-                <label><i class="fa-solid fa-key" style="color:var(--text-muted);margin-right:6px;"></i>Nova Senha <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
-                {{ form.new_password }}
-            </div>
-            <div class="form-group">
-                <label><i class="fa-solid fa-key" style="color:var(--text-muted);margin-right:6px;"></i>Confirmar Nova Senha</label>
-                {{ form.new_password_confirm }}
-            </div>
-        </div>
-        {% else %}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <div class="form-group">
-                <label><i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>Senha <span style="font-size:.72rem;color:var(--text-muted);">(mín. 10 caracteres)</span></label>
-                {{ form.password }}
-                {% if form.password.errors %}<span class="form-error">{{ form.password.errors.0 }}</span>{% endif %}
-            </div>
-            <div class="form-group">
-                <label><i class="fa-solid fa-lock" style="color:var(--text-muted);margin-right:6px;"></i>Confirmar Senha</label>
-                {{ form.password_confirm }}
-            </div>
+        {% if not editing %}
+        <div class="alert alert-info" style="margin-top:4px;">
+            <i class="fa-solid fa-key"></i>
+            A senha padrão será aplicada automaticamente. O usuário será obrigado a trocá-la no primeiro login.
         </div>
         {% endif %}
 

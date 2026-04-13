@@ -1,63 +1,30 @@
-"""
-models.py — Modelos com Meta.permissions para permissões customizadas.
-
-Permissões customizadas são registradas via Meta.permissions e
-ficam disponíveis para atribuição a grupos via setup_groups.
-"""
-
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
 
-# ───────────────── PERFIL / PERMISSÕES ─────────────────
-# Mantido para retrocompatibilidade com dados existentes.
-# A lógica de permissão foi migrada para Groups + Permissions.
-# Este modelo pode ser removido em uma release futura após migração completa.
-class UserProfile(models.Model):
-    NIVEL_CHOICES = [
-        ("admin",      "Administrador"),
-        ("supervisor", "Supervisor"),
-        ("usuario",    "Usuário"),
-    ]
-
-    user  = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    nivel = models.CharField(max_length=20, choices=NIVEL_CHOICES, default="usuario")
+# ───────────────── POLÍTICA DE SENHA ─────────────────
+class PasswordPolicy(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_policy",
+    )
+    must_change_password = models.BooleanField(default=True)
 
     class Meta:
-        verbose_name        = "Perfil de Usuário"
-        verbose_name_plural = "Perfis de Usuários"
+        verbose_name        = "Política de Senha"
+        verbose_name_plural = "Políticas de Senha"
 
     def __str__(self):
-        return f"{self.user.username} ({self.get_nivel_display()})"
-
-    # Propriedades mantidas para retrocompatibilidade
-    @property
-    def is_admin(self):
-        return self.nivel == "admin"
-
-    @property
-    def is_supervisor(self):
-        return self.nivel == "supervisor"
-
-    @property
-    def is_usuario(self):
-        return self.nivel == "usuario"
-
-    @property
-    def pode_editar(self):
-        return self.nivel in ("admin", "supervisor")
-
-    @property
-    def pode_acessar_admin(self):
-        return self.nivel == "admin"
+        return f"{self.user.username} — trocar: {self.must_change_password}"
 
 
 # ───────────────── LOJA ─────────────────
 class Loja(models.Model):
-    nome       = models.CharField(max_length=100, unique=True)
-    ativo      = models.BooleanField(default=True)
-    criado_em  = models.DateTimeField(auto_now_add=True)
+    nome      = models.CharField(max_length=100, unique=True)
+    ativo     = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering            = ["nome"]
@@ -67,11 +34,15 @@ class Loja(models.Model):
     def __str__(self):
         return self.nome
 
+    def pode_ser_desativada(self) -> bool:
+        return not self.viagem_set.filter(status="andamento").exists()
+
 
 # ───────────────── ITEM ─────────────────
 class Item(models.Model):
-    nome       = models.CharField(max_length=100, unique=True)
-    criado_em  = models.DateTimeField(auto_now_add=True)
+    nome      = models.CharField(max_length=100, unique=True)
+    ativo     = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering            = ["nome"]
@@ -81,12 +52,18 @@ class Item(models.Model):
     def __str__(self):
         return self.nome
 
+    def pode_ser_desativado(self) -> bool:
+        return not ChecklistItem.objects.filter(
+            item=self,
+            viagem__status="andamento",
+        ).exists()
+
 
 # ───────────────── MOCHILA ─────────────────
 class Mochila(models.Model):
-    nome      = models.CharField(max_length=100, default="Mochila")
-    ativo     = models.BooleanField(default=True)
-    itens     = models.ManyToManyField(Item, through="MochilaItem", related_name="mochilas")
+    nome  = models.CharField(max_length=100, default="Mochila")
+    ativo = models.BooleanField(default=True)
+    itens = models.ManyToManyField(Item, through="MochilaItem", related_name="mochilas")
 
     class Meta:
         ordering            = ["nome"]
@@ -95,6 +72,9 @@ class Mochila(models.Model):
 
     def __str__(self):
         return self.nome
+
+    def pode_ser_desativada(self) -> bool:
+        return not self.viagem_set.filter(status="andamento").exists()
 
 
 class MochilaItem(models.Model):
@@ -134,7 +114,6 @@ class Viagem(models.Model):
         verbose_name        = "Viagem"
         verbose_name_plural = "Viagens"
         permissions = [
-            # Permissões custom — atribuídas via setup_groups
             ("supervisor_access", "Acesso de Supervisor (pode editar)"),
             ("admin_access",      "Acesso de Administrador (acesso total)"),
             ("finalizar_viagem",  "Pode finalizar viagens"),
@@ -159,13 +138,13 @@ class Viagem(models.Model):
 
 # ───────────────── CHECKLIST ─────────────────
 class ChecklistItem(models.Model):
-    viagem              = models.ForeignKey(Viagem, on_delete=models.CASCADE, related_name="checklist")
-    item                = models.ForeignKey(Item,   on_delete=models.PROTECT)
-    quantidade          = models.PositiveIntegerField(default=1)
+    viagem             = models.ForeignKey(Viagem, on_delete=models.CASCADE, related_name="checklist")
+    item               = models.ForeignKey(Item,   on_delete=models.PROTECT)
+    quantidade         = models.PositiveIntegerField(default=1)
 
-    saida_ok            = models.BooleanField(default=True)
-    retorno_ok          = models.BooleanField(default=False)
-    observacao_retorno  = models.CharField(max_length=255, blank=True)
+    saida_ok           = models.BooleanField(default=True)
+    retorno_ok         = models.BooleanField(default=False)
+    observacao_retorno = models.CharField(max_length=255, blank=True)
 
     class Meta:
         unique_together     = ("viagem", "item")

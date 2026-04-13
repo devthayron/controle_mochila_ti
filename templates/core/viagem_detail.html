@@ -55,7 +55,7 @@
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
             <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ap-red),var(--accent-purple));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0;">
-                {{ viagem.responsavel.username|slice:":2"|upper }}
+                {{ viagem.responsavel.username|slice:":1"|upper }}
             </div>
             <span style="font-weight:600;font-size:.9rem;">{{ viagem.responsavel.get_full_name|default:viagem.responsavel.username }}</span>
         </div>

@@ -201,3 +201,65 @@ select[multiple],
 .form-layout {
     gap: 14px; /* menos espaçamento */
 }
+
+/* ─────────────────────────────────────────────
+   FIX GLOBAL — INPUTS DARK MODE CONSISTENTE
+   ───────────────────────────────────────────── */
+
+/* garante fundo escuro real consistente */
+input,
+select,
+textarea {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+}
+
+/* placeholder mais suave e visível no dark */
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.8;
+}
+
+/* foco mais consistente (remove “clareamento” estranho) */
+input:focus,
+select:focus,
+textarea:focus {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary);
+}
+
+/* corrige autofill do Chrome (o bug mais ignorado) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--bg-surface) inset !important;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+/* select options totalmente consistentes */
+select option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+/* remove inconsistência de textarea em alguns browsers */
+textarea {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+}
+
+/* borda mais coerente no dark */
+input,
+select,
+textarea {
+    border: 1px solid var(--border-light);
+}
+
+/* hover leve (sensação de sistema profissional) */
+input:hover,
+select:hover,
+textarea:hover {
+    border-color: rgba(200, 16, 46, 0.35);
+}

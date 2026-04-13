@@ -1,24 +1,21 @@
 """
-views.py — Orquestração pura. Sem lógica de negócio ou regras de permissão inline.
-
-Padrão:
-  - Views validam HTTP → chamam service → tratam exceções → respondem.
-  - Permissões complexas delegadas a permissions.py.
-  - Negócio delegado a services/.
+views.py — Apenas HTTP. Sem lógica de negócio.
 """
 
 import json
 import logging
 
 from django.contrib import messages
-from django.contrib.admin.models import ADDITION, CHANGE, DELETION
+from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import User
+from django.contrib.auth.views import LoginView, LogoutView
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_POST
@@ -27,22 +24,25 @@ from django.views.generic import (
     TemplateView, UpdateView,
 )
 
-from django.contrib.auth.views import LoginView, LogoutView
-from django.contrib.admin.models import LogEntry
-from django.contrib.contenttypes.models import ContentType
-from django.utils import timezone
-
 from . import permissions as perms
 from .forms import (
     ItemForm, LojaForm, MochilaForm,
-    UsuarioCreateForm, UsuarioEditForm, ViagemForm,
+    TrocarSenhaForm, UsuarioCreateForm, UsuarioEditForm, ViagemForm,
 )
 from .mixins import AdminRequiredMixin, NivelMixin, PermContextMixin, SupervisorRequiredMixin
-from .models import (
-    ChecklistItem, Item, Loja, Mochila, MochilaItem,
-    UserProfile, Viagem,
+from .models import ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem
+from .services.mochila_service import MochilaEmUso, desativar_mochila
+from .services.usuario_service import (
+    criar_usuario,
+    editar_usuario,
+    excluir_usuario,
+    get_nivel,
+    resetar_senha,
+    trocar_senha,
+    _assign_group_compat as _assign_group,
 )
 from .services.viagem_service import (
+    MochilaEmUso as MochilaEmUsoViagem,
     ViagemJaFinalizada,
     criar_viagem,
     finalizar_viagem,
@@ -56,6 +56,7 @@ logger = logging.getLogger("core")
 # ──────────────────────────────────────────────
 # AUDIT LOG HELPER
 # ──────────────────────────────────────────────
+
 def _log(user, obj, flag, message=""):
     LogEntry.objects.log_actions(
         user_id=user.pk,
@@ -64,6 +65,11 @@ def _log(user, obj, flag, message=""):
         change_message=message,
         single_object=True,
     )
+
+
+def _shim(u):
+    from .mixins import _LegacyProfileShim
+    return _LegacyProfileShim(u)
 
 
 # ──────────────────────────────────────────────
@@ -99,6 +105,58 @@ class CustomLogoutView(LogoutView):
 
 
 # ──────────────────────────────────────────────
+# TROCA DE SENHA OBRIGATÓRIA
+# ──────────────────────────────────────────────
+
+class TrocarSenhaView(View):
+    """
+    Acessível apenas por usuários autenticados.
+    O middleware já garante o redirecionamento quando must_change_password=True.
+    Esta view também serve para troca voluntária futura.
+    """
+    template_name = "core/trocar_senha.html"
+
+    def _ctx(self, request, form):
+        u = request.user
+        return {
+            "form": form,
+            "user_profile": _shim(u),
+            "user_perms": {
+                "pode_editar": perms._pode_editar(u),
+                "is_admin":    perms._is_admin(u),
+            },
+        }
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return redirect("login")
+        return render(request, self.template_name, self._ctx(request, TrocarSenhaForm()))
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return redirect("login")
+
+        form = TrocarSenhaForm(request.POST)
+        if not form.is_valid():
+            return render(request, self.template_name, self._ctx(request, form))
+
+        try:
+            trocar_senha(
+                user=request.user,
+                senha_atual=form.cleaned_data["senha_atual"],
+                nova_senha=form.cleaned_data["nova_senha"],
+            )
+        except ValueError as e:
+            messages.error(request, str(e))
+            return render(request, self.template_name, self._ctx(request, form))
+
+        # Mantém sessão ativa com a nova senha
+        update_session_auth_hash(request, request.user)
+        messages.success(request, "Senha alterada com sucesso!")
+        return redirect("dashboard")
+
+
+# ──────────────────────────────────────────────
 # DASHBOARD
 # ──────────────────────────────────────────────
 
@@ -110,7 +168,6 @@ class DashboardView(PermContextMixin, TemplateView):
         now = timezone.now()
         inicio_mes = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # Respeita visibilidade: usuário comum vê apenas as próprias viagens
         viagens_qs = perms.filtrar_viagens(
             self.request.user,
             Viagem.objects.select_related("responsavel", "loja", "mochila"),
@@ -141,12 +198,10 @@ class ViagemListView(PermContextMixin, ListView):
     paginate_by = 15
 
     def get_queryset(self):
-        # filtrar_viagens aplica restrição por usuário (multi-tenant ready)
         qs = perms.filtrar_viagens(
             self.request.user,
             Viagem.objects.select_related("responsavel", "loja", "mochila").order_by("-id"),
         )
-
         q      = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status")
         loja   = self.request.GET.get("loja")
@@ -186,7 +241,6 @@ class ViagemDetailView(PermContextMixin, DetailView):
         checklist = self.object.checklist.select_related("item").order_by("item__nome")
         total = checklist.count()
         retornados_ok = checklist.filter(retorno_ok=True).count()
-
         context.update({
             "checklist_items": checklist,
             "retornados_ok":   retornados_ok,
@@ -213,10 +267,7 @@ class ViagemCreateView(SupervisorRequiredMixin, CreateView):
                 loja=form.cleaned_data["loja"],
                 mochila=form.cleaned_data["mochila"],
             )
-        except PermissionDenied as e:
-            messages.error(self.request, str(e))
-            return self.form_invalid(form)
-        except ValueError as e:
+        except (PermissionDenied, ValueError, MochilaEmUsoViagem) as e:
             messages.error(self.request, str(e))
             return self.form_invalid(form)
 
@@ -238,24 +289,14 @@ class ViagemCreateView(SupervisorRequiredMixin, CreateView):
 
 @method_decorator(require_POST, name="dispatch")
 class FinalizarViagemView(SupervisorRequiredMixin, View):
-    """
-    POST /viagens/<pk>/finalizar/
-
-    Delega toda a lógica ao service. A view apenas:
-      1. Resolve o objeto
-      2. Chama o service
-      3. Trata exceções → mensagem HTTP
-    """
-
     def post(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
-
+        if not perms.pode_ver_viagem(request.user, viagem):
+            messages.error(request, "Você não tem acesso a esta viagem.")
+            return redirect("viagem_list")
         try:
             finalizar_viagem(user=request.user, viagem=viagem)
-        except PermissionDenied as e:
-            messages.error(request, str(e))
-            return redirect("viagem_detail", pk=pk)
-        except ViagemJaFinalizada as e:
+        except (PermissionDenied, ViagemJaFinalizada) as e:
             messages.error(request, str(e))
             return redirect("viagem_detail", pk=pk)
 
@@ -265,18 +306,13 @@ class FinalizarViagemView(SupervisorRequiredMixin, View):
 
 
 class ChecklistSaveView(PermContextMixin, View):
-    """
-    POST /viagens/<pk>/checklist/
-
-    Converte POST → payload tipado → delega ao service.
-    """
-
     def post(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
-
+        if not perms.pode_ver_viagem(request.user, viagem):
+            messages.error(request, "Você não tem acesso a esta viagem.")
+            return redirect("viagem_list")
         checklist_ids = list(viagem.checklist.values_list("id", flat=True))
         payload = payload_from_post(request.POST, checklist_ids)
-
         try:
             salvar_checklist(user=request.user, viagem=viagem, payload=payload)
         except PermissionDenied as e:
@@ -364,23 +400,28 @@ class MochilaUpdateView(SupervisorRequiredMixin, UpdateView):
         return redirect(self.success_url)
 
 
-class MochilaDeleteView(SupervisorRequiredMixin, DeleteView):
-    model = Mochila
-    template_name = "core/confirm_delete.html"
-    success_url = reverse_lazy("mochila_list")
-
-    def get_context_data(self, **kwargs):
-        return {
-            **super().get_context_data(**kwargs),
+class MochilaDeleteView(SupervisorRequiredMixin, View):
+    def get(self, request, pk):
+        mochila = get_object_or_404(Mochila, pk=pk)
+        u = request.user
+        return render(request, "core/confirm_delete.html", {
             "titulo": "Excluir Mochila",
-            "mensagem": f'Tem certeza que deseja excluir a mochila "{self.object.nome}"?',
+            "mensagem": f'Tem certeza que deseja excluir a mochila "{mochila.nome}"?',
             "voltar_url": reverse_lazy("mochila_list"),
-        }
+            "user_profile": _shim(u),
+            "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
+        })
 
-    def form_valid(self, form):
-        _log(self.request.user, self.object, DELETION, "Mochila excluída")
-        messages.success(self.request, "Mochila excluída.")
-        return super().form_valid(form)
+    def post(self, request, pk):
+        mochila = get_object_or_404(Mochila, pk=pk)
+        try:
+            desativar_mochila(user=request.user, mochila=mochila)
+        except (PermissionDenied, MochilaEmUso) as e:
+            messages.error(request, str(e))
+            return redirect("mochila_list")
+        _log(request.user, mochila, DELETION, "Mochila desativada (soft delete)")
+        messages.success(request, "Mochila excluída.")
+        return redirect("mochila_list")
 
 
 # ──────────────────────────────────────────────
@@ -521,81 +562,106 @@ class UsuarioListView(AdminRequiredMixin, ListView):
     context_object_name = "usuarios"
 
     def get_queryset(self):
-        return User.objects.prefetch_related("groups").order_by("username")
+        return (
+            User.objects
+            .prefetch_related("groups", "password_policy")
+            .order_by("username")
+        )
 
 
 class UsuarioCreateView(AdminRequiredMixin, View):
     template_name = "core/usuario_form.html"
 
-    def _ctx(self, form, editing=False):
-        return {"form": form, "editing": editing, "user_perms": self._user_perms()}
-
-    def _user_perms(self):
-        u = self.request.user
+    def _ctx(self, request, form, editing=False):
+        u = request.user
         return {
-            "pode_editar": perms._pode_editar(u),
-            "is_admin":    perms._is_admin(u),
+            "form": form, "editing": editing,
+            "user_profile": _shim(u),
+            "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
         }
 
     def get(self, request):
-        return render(request, self.template_name, self._ctx(UsuarioCreateForm()))
+        return render(request, self.template_name, self._ctx(request, UsuarioCreateForm()))
 
     def post(self, request):
         form = UsuarioCreateForm(request.POST)
         if not form.is_valid():
-            return render(request, self.template_name, self._ctx(form))
+            return render(request, self.template_name, self._ctx(request, form))
 
-        with transaction.atomic():
-            user = form.save(commit=False)
-            user.set_password(form.cleaned_data["password"])
-            nivel = form.cleaned_data["nivel"]
-            if nivel == "admin":
-                user.is_staff = user.is_superuser = True
-            user.save()
-            _assign_group(user, nivel)
+        try:
+            user = criar_usuario(
+                actor=request.user,
+                username=form.cleaned_data["username"],
+                nivel=form.cleaned_data["nivel"],
+                first_name=form.cleaned_data.get("first_name", ""),
+                last_name=form.cleaned_data.get("last_name", ""),
+                email=form.cleaned_data.get("email", ""),
+            )
+        except (PermissionDenied, ValueError) as e:
+            messages.error(request, str(e))
+            return render(request, self.template_name, self._ctx(request, form))
 
-        _log(request.user, user, ADDITION, f"Usuário criado — nível: {nivel}")
-        logger.info("Usuário %s criado por %s", user.username, request.user)
-        messages.success(request, f"Usuário {user.username} criado com sucesso!")
+        _log(request.user, user, ADDITION, f"Usuário criado — nível: {form.cleaned_data['nivel']}")
+        messages.success(request, f"Usuário {user.username} criado. Senha padrão aplicada.")
         return redirect("usuario_list")
 
 
 class UsuarioEditView(AdminRequiredMixin, View):
     template_name = "core/usuario_form.html"
 
-    def _ctx(self, form, target, editing=True):
-        u = self.request.user
+    def _ctx(self, request, form, target, editing=True):
+        u = request.user
         return {
-            "form": form, "editing": editing,
-            "target_user": target,
+            "form": form, "editing": editing, "target_user": target,
+            "user_profile": _shim(u),
             "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
-            "user_profile": _LegacyShim(u),
         }
 
     def get(self, request, pk):
         target = get_object_or_404(User, pk=pk)
-        nivel  = _get_nivel(target)
+        nivel  = get_nivel(target)
         form   = UsuarioEditForm(instance=target, initial={"nivel": nivel})
-        return render(request, self.template_name, self._ctx(form, target))
+        return render(request, self.template_name, self._ctx(request, form, target))
 
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
         form   = UsuarioEditForm(request.POST, instance=target)
         if not form.is_valid():
-            return render(request, self.template_name, self._ctx(form, target))
+            return render(request, self.template_name, self._ctx(request, form, target))
 
-        with transaction.atomic():
-            user  = form.save(commit=False)
-            nivel = form.cleaned_data["nivel"]
-            new_pass = form.cleaned_data.get("new_password")
-            if new_pass:
-                user.set_password(new_pass)
-            user.is_staff = user.is_superuser = (nivel == "admin")
-            user.save()
-            _assign_group(user, nivel)
+        try:
+            editar_usuario(
+                actor=request.user,
+                target=target,
+                username=form.cleaned_data["username"],
+                nivel=form.cleaned_data["nivel"],
+                first_name=form.cleaned_data.get("first_name", ""),
+                last_name=form.cleaned_data.get("last_name", ""),
+                email=form.cleaned_data.get("email", ""),
+            )
+        except (PermissionDenied, ValueError) as e:
+            messages.error(request, str(e))
+            return render(request, self.template_name, self._ctx(request, form, target))
 
-        _log(request.user, target, CHANGE, f"Usuário editado — nível: {nivel}")
+        _log(request.user, target, CHANGE, f"Usuário editado — nível: {form.cleaned_data['nivel']}")
         messages.success(request, f"Usuário {target.username} atualizado!")
+        return redirect("usuario_list")
+
+
+@method_decorator(require_POST, name="dispatch")
+class UsuarioResetSenhaView(AdminRequiredMixin, View):
+    """Somente admin. Redefine senha para o padrão e força troca."""
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        try:
+            resetar_senha(actor=request.user, target=target)
+        except PermissionDenied as e:
+            messages.error(request, str(e))
+            return redirect("usuario_list")
+
+        _log(request.user, target, CHANGE, "Senha redefinida para padrão")
+        messages.success(request, f"Senha de {target.username} redefinida. Usuário deverá trocar no próximo login.")
         return redirect("usuario_list")
 
 
@@ -603,58 +669,21 @@ class UsuarioEditView(AdminRequiredMixin, View):
 class UsuarioDeleteView(AdminRequiredMixin, View):
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
-        if target == request.user:
-            messages.error(request, "Você não pode excluir sua própria conta.")
-            return redirect("usuario_list")
         username = target.username
+        try:
+            excluir_usuario(actor=request.user, target=target)
+        except (PermissionDenied, ValueError) as e:
+            messages.error(request, str(e))
+            return redirect("usuario_list")
+
         _log(request.user, target, DELETION, "Usuário excluído")
-        target.delete()
-        logger.info("Usuário %s excluído por %s", username, request.user)
         messages.success(request, f"Usuário {username} excluído.")
         return redirect("usuario_list")
 
 
 # ──────────────────────────────────────────────
-# HELPERS INTERNOS DE GRUPOS
+# RETROCOMPAT
 # ──────────────────────────────────────────────
 
-_NIVEL_TO_GROUP = {
-    "admin":      "Admin",
-    "supervisor": "Supervisor",
-    "usuario":    "Usuário",
-}
-
-_GROUP_TO_NIVEL = {v: k for k, v in _NIVEL_TO_GROUP.items()}
-
-
-def _assign_group(user: User, nivel: str) -> None:
-    """Remove todos os grupos e atribui o grupo correto."""
-    from django.contrib.auth.models import Group
-    user.groups.clear()
-    group_name = _NIVEL_TO_GROUP.get(nivel)
-    if group_name:
-        group, _ = Group.objects.get_or_create(name=group_name)
-        user.groups.add(group)
-
-
 def _get_nivel(user: User) -> str:
-    """Resolve o nível a partir dos grupos do usuário."""
-    for group in user.groups.all():
-        nivel = _GROUP_TO_NIVEL.get(group.name)
-        if nivel:
-            return nivel
-    if user.is_superuser:
-        return "admin"
-    return "usuario"
-
-
-class _LegacyShim:
-    """Shim temporário para templates ainda usando user_profile."""
-    def __init__(self, u):
-        self._u = u
-    @property
-    def pode_editar(self): return perms._pode_editar(self._u)
-    @property
-    def is_admin(self): return perms._is_admin(self._u)
-    @property
-    def is_supervisor(self): return perms._is_supervisor(self._u)
+    return get_nivel(user)

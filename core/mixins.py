@@ -1,31 +1,23 @@
 """
 mixins.py — Mixins de autenticação e autorização baseados em Groups + Permissions.
-
-NÃO acessam UserProfile.nivel.
-Usam has_perm() via permissions.py.
 """
 
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.core.exceptions import PermissionDenied
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 
 from . import permissions as perms
 
 
 # ──────────────────────────────────────────────
-# BASE MIXIN — injeta flags de permissão no contexto
+# BASE MIXIN
 # ──────────────────────────────────────────────
 
 class PermContextMixin(LoginRequiredMixin):
     """
-    Injeta `user_perms` no contexto de todos os templates.
-    Substitui o antigo `user_profile` nos templates.
-
-    Uso nos templates:
-        {% if user_perms.pode_editar %}
+    Injeta `user_perms` e `user_profile` (shim) no contexto de templates.
     """
 
     def get_context_data(self, **kwargs):
@@ -37,18 +29,12 @@ class PermContextMixin(LoginRequiredMixin):
             "is_supervisor":           perms._is_supervisor(u),
             "pode_gerenciar_usuarios": perms.pode_gerenciar_usuarios(u),
         }
-        # Retrocompatibilidade: mantém user_profile.pode_editar funcionando
-        # nos templates que ainda não foram migrados.
         context["user_profile"] = _LegacyProfileShim(u)
         return context
 
 
 class _LegacyProfileShim:
-    """
-    Shim temporário para manter templates antigos funcionando
-    enquanto são migrados para {{ user_perms }}.
-    Remove quando todos os templates usarem user_perms.
-    """
+    """Compatibilidade com templates que ainda usam user_profile.*"""
 
     def __init__(self, user):
         self._user = user
@@ -108,5 +94,4 @@ class AdminRequiredMixin(PermContextMixin):
 # ALIAS RETROCOMPATÍVEL
 # ──────────────────────────────────────────────
 
-# Mantém imports antigos funcionando sem alterar views legadas:
 NivelMixin = PermContextMixin
