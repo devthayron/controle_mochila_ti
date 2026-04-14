@@ -1,5 +1,12 @@
 """
-views.py — Apenas orquestração HTTP. Sem lógica de negócio.
+views.py — Apenas orquestração HTTP.
+
+Regras:
+- Views NUNCA contêm lógica de negócio
+- Views NUNCA fazem validações de domínio
+- Views chamam services e tratam exceções
+- Toda regra de acesso fica em permissions.py
+- Toda regra de negócio fica em services/
 """
 
 import json
@@ -21,18 +28,30 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import (
-    CreateView, DeleteView, DetailView, ListView,
+    CreateView, DetailView, ListView,
     TemplateView, UpdateView,
 )
 
 from . import permissions as perms
+from .exceptions import (
+    AutoExclusaoError,
+    DomainError,
+    ItemEmUsoError,
+    LojaEmUsoError,
+    MochilaEmUsoError,
+    SenhaFracaError,
+    SenhaIncorretaError,
+    ViagemJaFinalizada,
+)
 from .forms import (
     ItemForm, LojaForm, MochilaForm,
     TrocarSenhaForm, UsuarioCreateForm, UsuarioEditForm, ViagemForm,
 )
 from .mixins import AdminRequiredMixin, NivelMixin, PermContextMixin, SupervisorRequiredMixin
 from .models import ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem
-from .services.mochila_service import MochilaEmUsoMochila, desativar_mochila
+from .services.item_service import desativar_item
+from .services.loja_service import desativar_loja
+from .services.mochila_service import desativar_mochila, sincronizar_itens
 from .services.usuario_service import (
     criar_usuario,
     editar_usuario,
@@ -42,32 +61,23 @@ from .services.usuario_service import (
     trocar_senha,
 )
 from .services.viagem_service import (
-    ViagemJaFinalizada,
     criar_viagem,
     finalizar_viagem,
     payload_from_post,
     salvar_checklist,
 )
-from .services.viagem_service import MochilaEmUsoViagem
 
 logger = logging.getLogger("core")
 
 
 # ──────────────────────────────────────────────
-# AUDIT LOG HELPER — CORRIGIDO
+# AUDIT LOG HELPER
 # ──────────────────────────────────────────────
-
-
 
 def _log(user, obj, flag, message=""):
     if not user or not user.pk:
         return
-
-    content_type = ContentType.objects.get_for_model(
-        obj.__class__,
-        for_concrete_model=True
-    )
-
+    content_type = ContentType.objects.get_for_model(obj.__class__, for_concrete_model=True)
     LogEntry.objects.create(
         user_id=user.pk,
         content_type_id=content_type.pk,
@@ -76,6 +86,7 @@ def _log(user, obj, flag, message=""):
         action_flag=flag,
         change_message=message[:255],
     )
+
 
 def _shim(u):
     from .mixins import _LegacyProfileShim
@@ -151,7 +162,7 @@ class TrocarSenhaView(View):
                 senha_atual=form.cleaned_data["senha_atual"],
                 nova_senha=form.cleaned_data["nova_senha"],
             )
-        except ValueError as e:
+        except (SenhaIncorretaError, SenhaFracaError) as e:
             messages.error(request, str(e))
             return render(request, self.template_name, self._ctx(request, form))
 
@@ -182,11 +193,11 @@ class DashboardView(PermContextMixin, TemplateView):
             "total_finalizadas": viagens_qs.filter(
                 status="finalizada", data_retorno__gte=inicio_mes
             ).count(),
-            "total_mochilas":    Mochila.objects.filter(ativo=True).count(),
-            "total_lojas":       Loja.objects.filter(ativo=True).count(),
+            "total_mochilas":    Mochila.objects.count(),
+            "total_lojas":       Loja.objects.count(),
             "viagens_andamento": viagens_qs.filter(status="andamento").order_by("-data_saida")[:10],
             "ultimas_viagens":   viagens_qs.order_by("-id")[:8],
-            "mochilas":          Mochila.objects.filter(ativo=True).prefetch_related("mochilaitem_set__item"),
+            "mochilas":          Mochila.objects.prefetch_related("mochilaitem_set__item"),
         })
         return context
 
@@ -225,7 +236,7 @@ class ViagemListView(PermContextMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["lojas"] = Loja.objects.filter(ativo=True)
+        context["lojas"] = Loja.objects.all()
         return context
 
 
@@ -271,7 +282,7 @@ class ViagemCreateView(SupervisorRequiredMixin, CreateView):
                 loja=form.cleaned_data["loja"],
                 mochila=form.cleaned_data["mochila"],
             )
-        except (PermissionDenied, ValueError, MochilaEmUsoViagem) as e:
+        except (PermissionDenied, DomainError) as e:
             messages.error(self.request, str(e))
             return self.form_invalid(form)
 
@@ -282,7 +293,7 @@ class ViagemCreateView(SupervisorRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         mochilas_dict = {}
-        for m in Mochila.objects.filter(ativo=True).prefetch_related("mochilaitem_set__item"):
+        for m in Mochila.objects.prefetch_related("mochilaitem_set__item"):
             mochilas_dict[str(m.pk)] = [
                 {"item": mi.item.nome, "quantidade": mi.quantidade}
                 for mi in m.mochilaitem_set.all()
@@ -337,7 +348,7 @@ class MochilaListView(PermContextMixin, ListView):
     context_object_name = "mochilas"
 
     def get_queryset(self):
-        return Mochila.objects.filter(ativo=True).prefetch_related("mochilaitem_set__item")
+        return Mochila.objects.prefetch_related("mochilaitem_set__item")
 
 
 class MochilaDetailView(PermContextMixin, DetailView):
@@ -355,47 +366,22 @@ class MochilaDetailView(PermContextMixin, DetailView):
         return context
 
 
-"""
-PATCH para views.py — substitua apenas as classes MochilaCreateView e MochilaUpdateView
-e adicione o helper _parse_itens_post logo abaixo dos imports.
-"""
-
-# ──────────────────────────────────────────────
-# HELPER — lê item_ids + qty_<id> do POST
-# ──────────────────────────────────────────────
-
 def _parse_itens_post(post_data) -> dict[int, int]:
-    """
-    Lê os campos do novo formulário de mochila:
-      - item_ids (lista de IDs selecionados)
-      - qty_<id> (quantidade de cada item)
-
-    Retorna: {item_id: quantidade}
-    """
-    item_ids = post_data.getlist("item_ids")
-    result   = {}
-    for raw_id in item_ids:
+    """Extrai {item_id: quantidade} do POST do formulário de mochila."""
+    result = {}
+    for raw_id in post_data.getlist("item_ids"):
         try:
             item_id = int(raw_id)
             qty     = int(post_data.get(f"qty_{item_id}", 1))
-            qty     = max(1, min(99, qty))   # clamp seguro
-            result[item_id] = qty
+            result[item_id] = max(1, min(99, qty))
         except (ValueError, TypeError):
             continue
     return result
 
 
 def _mochila_context(mochila=None) -> dict:
-    """
-    Monta contexto comum para criação e edição:
-      - todos_itens: itens ativos com quantidade_atual injetada
-      - itens_selecionados: set de IDs já escolhidos (como strings para o template)
-    """
-    from .models import Item, MochilaItem
-
-    itens_qs = Item.objects.filter(ativo=True).order_by("nome")
-
-    # quantidades atuais (só na edição)
+    """Contexto compartilhado para criar e editar mochila."""
+    itens_qs = Item.objects.order_by("nome")
     qtd_map: dict[int, int] = {}
     if mochila:
         qtd_map = {
@@ -403,23 +389,16 @@ def _mochila_context(mochila=None) -> dict:
             for mi in MochilaItem.objects.filter(mochila=mochila)
         }
 
-    # injeta atributo quantidade_atual em cada item
     todos_itens = []
     for item in itens_qs:
         item.quantidade_atual = qtd_map.get(item.id, 1)
         todos_itens.append(item)
 
-    itens_selecionados = {str(k) for k in qtd_map.keys()}
-
     return {
-        "todos_itens":       todos_itens,
-        "itens_selecionados": itens_selecionados,
+        "todos_itens":        todos_itens,
+        "itens_selecionados": {str(k) for k in qtd_map.keys()},
     }
 
-
-# ──────────────────────────────────────────────
-# MOCHILAS — CREATE
-# ──────────────────────────────────────────────
 
 class MochilaCreateView(SupervisorRequiredMixin, CreateView):
     model      = Mochila
@@ -438,19 +417,12 @@ class MochilaCreateView(SupervisorRequiredMixin, CreateView):
 
         with transaction.atomic():
             self.object = form.save()
-            MochilaItem.objects.bulk_create([
-                MochilaItem(mochila=self.object, item_id=item_id, quantidade=qty)
-                for item_id, qty in itens_qtd.items()
-            ])
+            sincronizar_itens(self.request.user, self.object, itens_qtd)
 
         _log(self.request.user, self.object, ADDITION, "Mochila criada")
         messages.success(self.request, "Mochila criada com sucesso!")
         return redirect(self.success_url)
 
-
-# ──────────────────────────────────────────────
-# MOCHILAS — UPDATE
-# ──────────────────────────────────────────────
 
 class MochilaUpdateView(SupervisorRequiredMixin, UpdateView):
     model      = Mochila
@@ -469,11 +441,7 @@ class MochilaUpdateView(SupervisorRequiredMixin, UpdateView):
 
         with transaction.atomic():
             self.object = form.save()
-            MochilaItem.objects.filter(mochila=self.object).delete()
-            MochilaItem.objects.bulk_create([
-                MochilaItem(mochila=self.object, item_id=item_id, quantidade=qty)
-                for item_id, qty in itens_qtd.items()
-            ])
+            sincronizar_itens(self.request.user, self.object, itens_qtd)
 
         _log(self.request.user, self.object, CHANGE, "Mochila editada")
         messages.success(self.request, "Mochila atualizada com sucesso!")
@@ -486,7 +454,7 @@ class MochilaDeleteView(SupervisorRequiredMixin, View):
         u = request.user
         return render(request, "core/confirm_delete.html", {
             "titulo": "Excluir Mochila",
-            "mensagem": f'Tem certeza que deseja excluir a mochila "{mochila.nome}"?',
+            "mensagem": f'Deseja desativar a mochila "{mochila.nome}"?',
             "voltar_url": reverse_lazy("mochila_list"),
             "user_profile": _shim(u),
             "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
@@ -496,16 +464,17 @@ class MochilaDeleteView(SupervisorRequiredMixin, View):
         mochila = get_object_or_404(Mochila, pk=pk)
         try:
             desativar_mochila(user=request.user, mochila=mochila)
-        except (PermissionDenied, MochilaEmUsoMochila) as e:
+        except (PermissionDenied, MochilaEmUsoError) as e:
             messages.error(request, str(e))
             return redirect("mochila_list")
-        _log(request.user, mochila, DELETION, "Mochila desativada (soft delete)")
-        messages.success(request, "Mochila excluída.")
+
+        _log(request.user, mochila, DELETION, "Mochila desativada")
+        messages.success(request, "Mochila desativada.")
         return redirect("mochila_list")
 
 
 # ──────────────────────────────────────────────
-# ITENS — FIX: filtra ativo=True
+# ITENS
 # ──────────────────────────────────────────────
 
 class ItemListView(PermContextMixin, ListView):
@@ -514,8 +483,7 @@ class ItemListView(PermContextMixin, ListView):
     context_object_name = "itens"
 
     def get_queryset(self):
-        # FIX: exibe apenas itens ativos
-        return Item.objects.filter(ativo=True).annotate(num_mochilas=Count("mochilas")).order_by("nome")
+        return Item.objects.annotate(num_mochilas=Count("mochilas")).order_by("nome")
 
 
 class ItemCreateView(SupervisorRequiredMixin, CreateView):
@@ -553,28 +521,13 @@ class ItemUpdateView(SupervisorRequiredMixin, UpdateView):
 class ItemDeleteView(SupervisorRequiredMixin, View):
     def post(self, request, pk):
         item = get_object_or_404(Item, pk=pk)
-
-        if not item.pode_ser_desativado():
-            messages.error(
-                request,
-                "Item está em uso em viagens em andamento e não pode ser desativado."
-            )
+        try:
+            desativar_item(user=request.user, item=item)
+        except (PermissionDenied, ItemEmUsoError) as e:
+            messages.error(request, str(e))
             return redirect("item_list")
 
-        if not item.ativo:
-            messages.warning(request, "Item já está desativado.")
-            return redirect("item_list")
-
-        item.ativo = False
-        item.save(update_fields=["ativo"])
-
-        _log(
-            request.user,
-            item,
-            DELETION,  # pode manter por enquanto
-            "Item desativado (soft delete)"
-        )
-
+        _log(request.user, item, DELETION, "Item desativado")
         messages.success(request, "Item desativado com sucesso.")
         return redirect("item_list")
 
@@ -589,7 +542,7 @@ class LojaListView(PermContextMixin, ListView):
     context_object_name = "lojas"
 
     def get_queryset(self):
-        return Loja.objects.filter(ativo=True).annotate(total_viagens=Count("viagem")).order_by("nome")
+        return Loja.objects.annotate(total_viagens=Count("viagem")).order_by("nome")
 
 
 class LojaCreateView(SupervisorRequiredMixin, CreateView):
@@ -624,23 +577,29 @@ class LojaUpdateView(SupervisorRequiredMixin, UpdateView):
         return response
 
 
-class LojaDeleteView(SupervisorRequiredMixin, DeleteView):
-    model = Loja
-    template_name = "core/confirm_delete.html"
-    success_url = reverse_lazy("loja_list")
-
-    def get_context_data(self, **kwargs):
-        return {
-            **super().get_context_data(**kwargs),
+class LojaDeleteView(SupervisorRequiredMixin, View):
+    def get(self, request, pk):
+        loja = get_object_or_404(Loja, pk=pk)
+        u = request.user
+        return render(request, "core/confirm_delete.html", {
             "titulo": "Excluir Loja",
-            "mensagem": f'Tem certeza que deseja excluir a loja "{self.object.nome}"?',
+            "mensagem": f'Deseja desativar a loja "{loja.nome}"?',
             "voltar_url": reverse_lazy("loja_list"),
-        }
+            "user_profile": _shim(u),
+            "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
+        })
 
-    def form_valid(self, form):
-        _log(self.request.user, self.object, DELETION, "Loja excluída")
-        messages.success(self.request, "Loja excluída.")
-        return super().form_valid(form)
+    def post(self, request, pk):
+        loja = get_object_or_404(Loja, pk=pk)
+        try:
+            desativar_loja(user=request.user, loja=loja)
+        except (PermissionDenied, LojaEmUsoError) as e:
+            messages.error(request, str(e))
+            return redirect("loja_list")
+
+        _log(request.user, loja, DELETION, "Loja desativada")
+        messages.success(request, "Loja desativada.")
+        return redirect("loja_list")
 
 
 # ──────────────────────────────────────────────
@@ -689,7 +648,7 @@ class UsuarioCreateView(AdminRequiredMixin, View):
                 last_name=form.cleaned_data.get("last_name", ""),
                 email=form.cleaned_data.get("email", ""),
             )
-        except (PermissionDenied, ValueError) as e:
+        except (PermissionDenied, DomainError) as e:
             messages.error(request, str(e))
             return render(request, self.template_name, self._ctx(request, form))
 
@@ -731,7 +690,7 @@ class UsuarioEditView(AdminRequiredMixin, View):
                 last_name=form.cleaned_data.get("last_name", ""),
                 email=form.cleaned_data.get("email", ""),
             )
-        except (PermissionDenied, ValueError) as e:
+        except (PermissionDenied, DomainError) as e:
             messages.error(request, str(e))
             return render(request, self.template_name, self._ctx(request, form, target))
 
@@ -751,7 +710,7 @@ class UsuarioResetSenhaView(AdminRequiredMixin, View):
             return redirect("usuario_list")
 
         _log(request.user, target, CHANGE, "Senha redefinida para padrão")
-        messages.success(request, f"Senha de {target.username} redefinida. Usuário deverá trocar no próximo login.")
+        messages.success(request, f"Senha de {target.username} redefinida.")
         return redirect("usuario_list")
 
 
@@ -762,18 +721,10 @@ class UsuarioDeleteView(AdminRequiredMixin, View):
         username = target.username
         try:
             excluir_usuario(actor=request.user, target=target)
-        except (PermissionDenied, ValueError) as e:
+        except (PermissionDenied, AutoExclusaoError, DomainError) as e:
             messages.error(request, str(e))
             return redirect("usuario_list")
 
-        _log(request.user, target, DELETION, "Usuário excluído")
-        messages.success(request, f"Usuário {username} excluído.")
+        _log(request.user, target, DELETION, "Usuário desativado")
+        messages.success(request, f"Usuário {username} desativado.")
         return redirect("usuario_list")
-
-
-# ──────────────────────────────────────────────
-# RETROCOMPAT
-# ──────────────────────────────────────────────
-
-def _get_nivel(user: User) -> str:
-    return get_nivel(user)

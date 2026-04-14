@@ -1,5 +1,9 @@
 """
 forms.py — Apenas validação de input HTTP.
+
+NOTA: Os querysets de Loja, Mochila e Item usam automaticamente
+o AtivoManager (filtra ativo=True), então não é necessário
+chamar .filter(ativo=True) explicitamente.
 """
 
 from django import forms
@@ -16,11 +20,6 @@ NIVEL_CHOICES = [
 
 
 class MochilaForm(forms.ModelForm):
-    """
-    Apenas valida o nome da mochila.
-    Itens e quantidades são gerenciados pela view via POST (item_ids + qty_<id>),
-    não por este form — isso permite quantidades individuais por item.
-    """
     class Meta:
         model  = Mochila
         fields = ["nome"]
@@ -41,8 +40,9 @@ class ViagemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["loja"].queryset        = Loja.objects.filter(ativo=True).order_by("nome")
-        self.fields["mochila"].queryset     = Mochila.objects.filter(ativo=True).order_by("nome")
+        # AtivoManager já filtra ativo=True — apenas ordenamos
+        self.fields["loja"].queryset        = Loja.objects.order_by("nome")
+        self.fields["mochila"].queryset     = Mochila.objects.order_by("nome")
         self.fields["responsavel"].queryset = User.objects.filter(is_active=True).order_by("username")
 
 

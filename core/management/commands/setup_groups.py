@@ -1,46 +1,34 @@
 from django.contrib.auth.models import Group, Permission
-from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
 from core.models import (
-    ChecklistItem, Item, Loja, Mochila, MochilaItem, UserProfile, Viagem,
+    ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem,
 )
 
 
 class Command(BaseCommand):
     help = "Cria grupos e permissões do sistema (idempotente)."
 
-    # ──────────────────────────────────────────
-    # PERMISSÕES POR GRUPO
-    # ──────────────────────────────────────────
-
-    # (app_label, codename)
     SUPERVISOR_PERMS = [
-        # Viagem
         ("core", "add_viagem"),
         ("core", "change_viagem"),
         ("core", "view_viagem"),
-        ("core", "supervisor_access"),      # custom
-        ("core", "finalizar_viagem"),        # custom
-        # Checklist
+        ("core", "supervisor_access"),
+        ("core", "finalizar_viagem"),
         ("core", "add_checklistitem"),
         ("core", "change_checklistitem"),
         ("core", "view_checklistitem"),
-        # Mochila
         ("core", "add_mochila"),
         ("core", "change_mochila"),
         ("core", "delete_mochila"),
         ("core", "view_mochila"),
-        # MochilaItem
         ("core", "add_mochilaitem"),
         ("core", "change_mochilaitem"),
         ("core", "delete_mochilaitem"),
-        # Loja
         ("core", "add_loja"),
         ("core", "change_loja"),
         ("core", "delete_loja"),
         ("core", "view_loja"),
-        # Item
         ("core", "add_item"),
         ("core", "change_item"),
         ("core", "delete_item"),
@@ -78,7 +66,7 @@ class Command(BaseCommand):
         group.permissions.set(perms)
         self.stdout.write(f"  Grupo 'Usuário' configurado com {len(perms)} permissões.")
 
-    def _resolve_permissions(self, perm_list: list[tuple[str, str]]) -> list[Permission]:
+    def _resolve_permissions(self, perm_list):
         resolved = []
         for app_label, codename in perm_list:
             try:

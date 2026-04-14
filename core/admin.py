@@ -1,13 +1,19 @@
+"""
+admin.py — Painel administrativo Django.
+Usa os services para todas as operações de negócio.
+"""
+
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
-from django.db import transaction
 
-from .forms import MochilaForm
+from .exceptions import DomainError, ItemEmUsoError, LojaEmUsoError, MochilaEmUsoError
 from .models import (
     ChecklistItem, Item, Loja, Mochila, MochilaItem,
     PasswordPolicy, Viagem,
 )
-from .services.mochila_service import MochilaEmUsoMochila, desativar_mochila
+from .services.item_service import desativar_item, reativar_item
+from .services.loja_service import desativar_loja, reativar_loja
+from .services.mochila_service import desativar_mochila, reativar_mochila
 from .services.usuario_service import resetar_senha
 
 
@@ -62,21 +68,29 @@ class LojaAdmin(admin.ModelAdmin):
     search_fields = ["nome"]
     list_display  = ["id", "nome", "ativo", "criado_em"]
     list_filter   = ["ativo"]
-    actions       = ["ativar_lojas", "desativar_lojas"]
+
+    # Exibe todos (ativos e inativos) no admin
+    def get_queryset(self, request):
+        return Loja.all_objects.all()
+
+    actions = ["ativar_lojas", "desativar_lojas"]
 
     @admin.action(description="Ativar lojas selecionadas")
     def ativar_lojas(self, request, queryset):
-        queryset.update(ativo=True)
+        for loja in queryset:
+            try:
+                reativar_loja(user=request.user, loja=loja)
+            except Exception as e:
+                self.message_user(request, str(e), level="warning")
 
     @admin.action(description="Desativar lojas selecionadas")
     def desativar_lojas(self, request, queryset):
         bloqueadas = []
         for loja in queryset:
-            if not loja.pode_ser_desativada():
+            try:
+                desativar_loja(user=request.user, loja=loja)
+            except LojaEmUsoError as e:
                 bloqueadas.append(loja.nome)
-            else:
-                loja.ativo = False
-                loja.save(update_fields=["ativo"])
         if bloqueadas:
             self.message_user(
                 request,
@@ -94,21 +108,28 @@ class ItemAdmin(admin.ModelAdmin):
     search_fields = ["nome"]
     list_display  = ["id", "nome", "ativo", "criado_em"]
     list_filter   = ["ativo"]
-    actions       = ["ativar_itens", "desativar_itens"]
+
+    def get_queryset(self, request):
+        return Item.all_objects.all()
+
+    actions = ["ativar_itens", "desativar_itens"]
 
     @admin.action(description="Ativar itens selecionados")
     def ativar_itens(self, request, queryset):
-        queryset.update(ativo=True)
+        for item in queryset:
+            try:
+                reativar_item(user=request.user, item=item)
+            except Exception as e:
+                self.message_user(request, str(e), level="warning")
 
     @admin.action(description="Desativar itens selecionados")
     def desativar_itens(self, request, queryset):
         bloqueados = []
         for item in queryset:
-            if not item.pode_ser_desativado():
+            try:
+                desativar_item(user=request.user, item=item)
+            except ItemEmUsoError:
                 bloqueados.append(item.nome)
-            else:
-                item.ativo = False
-                item.save(update_fields=["ativo"])
         if bloqueados:
             self.message_user(
                 request,
@@ -134,7 +155,11 @@ class MochilaAdmin(admin.ModelAdmin):
     list_display  = ["id", "nome", "ativo", "num_itens", "em_viagem_ativa"]
     list_filter   = ["ativo"]
     search_fields = ["nome"]
-    actions       = ["ativar_mochilas", "desativar_mochilas"]
+
+    def get_queryset(self, request):
+        return Mochila.all_objects.all()
+
+    actions = ["ativar_mochilas", "desativar_mochilas"]
 
     @admin.display(description="Itens")
     def num_itens(self, obj):
@@ -144,19 +169,10 @@ class MochilaAdmin(admin.ModelAdmin):
     def em_viagem_ativa(self, obj):
         return not obj.pode_ser_desativada()
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        if not change:
-            itens = form.cleaned_data.get("itens", [])
-            MochilaItem.objects.bulk_create([
-                MochilaItem(mochila=obj, item=item, quantidade=1)
-                for item in itens
-            ])
-
     def delete_model(self, request, obj):
         try:
             desativar_mochila(user=request.user, mochila=obj)
-        except MochilaEmUsoMochila as e:
+        except MochilaEmUsoError as e:
             self.message_user(request, str(e), level="error")
 
     def delete_queryset(self, request, queryset):
@@ -164,7 +180,7 @@ class MochilaAdmin(admin.ModelAdmin):
         for m in queryset:
             try:
                 desativar_mochila(user=request.user, mochila=m)
-            except MochilaEmUsoMochila:
+            except MochilaEmUsoError:
                 bloqueadas.append(m.nome)
         if bloqueadas:
             self.message_user(
@@ -175,7 +191,11 @@ class MochilaAdmin(admin.ModelAdmin):
 
     @admin.action(description="Ativar mochilas selecionadas")
     def ativar_mochilas(self, request, queryset):
-        queryset.update(ativo=True)
+        for m in queryset:
+            try:
+                reativar_mochila(user=request.user, mochila=m)
+            except Exception as e:
+                self.message_user(request, str(e), level="warning")
 
     @admin.action(description="Desativar mochilas selecionadas (soft delete)")
     def desativar_mochilas(self, request, queryset):

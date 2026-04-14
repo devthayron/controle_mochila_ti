@@ -1,16 +1,17 @@
 """
-services/usuario_service.py — Criação, edição, exclusão (soft delete) e reset de senha.
+services/usuario_service.py — Criação, edição, exclusão e reset de senha.
 """
 
 from __future__ import annotations
 
 import logging
+
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.utils import timezone
 
 from core import permissions as perms
+from ..exceptions import AutoExclusaoError, SenhaFracaError, SenhaIncorretaError
 from ..models import PasswordPolicy
 
 logger = logging.getLogger("core.services.usuario")
@@ -18,16 +19,16 @@ logger = logging.getLogger("core.services.usuario")
 DEFAULT_PASSWORD = "Dti@paraiba"
 
 _NIVEL_TO_GROUP = {
-    "admin": "Admin",
+    "admin":      "Admin",
     "supervisor": "Supervisor",
-    "usuario": "Usuário",
+    "usuario":    "Usuário",
 }
 
 _GROUP_TO_NIVEL = {v: k for k, v in _NIVEL_TO_GROUP.items()}
 
 
 # ──────────────────────────────────────────────
-# HELPERS
+# HELPERS INTERNOS
 # ──────────────────────────────────────────────
 
 def _assign_group(user: User, nivel: str) -> None:
@@ -38,8 +39,16 @@ def _assign_group(user: User, nivel: str) -> None:
 
 
 def _ensure_password_policy(user: User) -> PasswordPolicy:
-    return PasswordPolicy.objects.get_or_create(user=user)[0]
+    policy, _ = PasswordPolicy.objects.get_or_create(
+        user=user,
+        defaults={"must_change_password": True},
+    )
+    return policy
 
+
+# ──────────────────────────────────────────────
+# CONSULTAS
+# ──────────────────────────────────────────────
 
 def get_nivel(user: User) -> str:
     for group in user.groups.all():
@@ -50,7 +59,7 @@ def get_nivel(user: User) -> str:
 
 
 def must_change_password(user: User) -> bool:
-    policy, _ = PasswordPolicy.objects.get_or_create(user=user, defaults={"must_change_password": True})
+    policy = _ensure_password_policy(user)
     return policy.must_change_password
 
 
@@ -59,11 +68,22 @@ def must_change_password(user: User) -> bool:
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def criar_usuario(actor: User, username: str, nivel: str = "usuario",
-                  first_name: str = "", last_name: str = "", email: str = "") -> User:
+def criar_usuario(
+    actor: User,
+    username: str,
+    nivel: str = "usuario",
+    first_name: str = "",
+    last_name: str = "",
+    email: str = "",
+) -> User:
+    """
+    Cria um novo usuário com senha padrão e troca obrigatória.
 
+    Raises:
+        PermissionDenied: ator sem permissão
+    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão.")
+        raise PermissionDenied("Sem permissão para gerenciar usuários.")
 
     user = User.objects.create(
         username=username,
@@ -73,7 +93,6 @@ def criar_usuario(actor: User, username: str, nivel: str = "usuario",
         is_staff=(nivel == "admin"),
         is_superuser=(nivel == "admin"),
     )
-
     user.set_password(DEFAULT_PASSWORD)
     user.save()
 
@@ -89,18 +108,30 @@ def criar_usuario(actor: User, username: str, nivel: str = "usuario",
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def editar_usuario(actor: User, target: User, username: str, nivel: str,
-                   first_name: str = "", last_name: str = "", email: str = "") -> User:
+def editar_usuario(
+    actor: User,
+    target: User,
+    username: str,
+    nivel: str,
+    first_name: str = "",
+    last_name: str = "",
+    email: str = "",
+) -> User:
+    """
+    Edita dados e nível de acesso de um usuário.
 
+    Raises:
+        PermissionDenied: ator sem permissão
+    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão.")
+        raise PermissionDenied("Sem permissão para gerenciar usuários.")
 
-    target.username = username
+    target.username   = username
     target.first_name = first_name
-    target.last_name = last_name
-    target.email = email
-    target.is_staff = (nivel == "admin")
-    target.is_superuser = (nivel == "admin")
+    target.last_name  = last_name
+    target.email      = email
+    target.is_staff      = (nivel == "admin")
+    target.is_superuser  = (nivel == "admin")
     target.save()
 
     _assign_group(target, nivel)
@@ -110,14 +141,19 @@ def editar_usuario(actor: User, target: User, username: str, nivel: str,
 
 
 # ──────────────────────────────────────────────
-# RESET SENHA
+# RESET DE SENHA
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def resetar_senha(actor: User, target: User) -> None:
+    """
+    Redefine a senha de um usuário para o padrão e força troca.
 
+    Raises:
+        PermissionDenied: ator sem permissão
+    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão.")
+        raise PermissionDenied("Sem permissão para resetar senhas.")
 
     target.set_password(DEFAULT_PASSWORD)
     target.save()
@@ -135,15 +171,21 @@ def resetar_senha(actor: User, target: User) -> None:
 
 @transaction.atomic
 def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
+    """
+    Troca a senha do usuário e libera a flag de troca obrigatória.
 
+    Raises:
+        SenhaIncorretaError: senha atual incorreta
+        SenhaFracaError: nova senha não atende critérios
+    """
     if not user.check_password(senha_atual):
-        raise ValueError("Senha incorreta.")
+        raise SenhaIncorretaError("Senha atual incorreta.")
 
     if len(nova_senha) < 8:
-        raise ValueError("Senha fraca.")
+        raise SenhaFracaError("A senha deve ter no mínimo 8 caracteres.")
 
     if nova_senha == DEFAULT_PASSWORD:
-        raise ValueError("Senha inválida.")
+        raise SenhaFracaError("A nova senha não pode ser igual à senha padrão do sistema.")
 
     user.set_password(nova_senha)
     user.save()
@@ -156,26 +198,28 @@ def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
 
 
 # ──────────────────────────────────────────────
-# EXCLUSÃO (SOFT DELETE REAL)
+# EXCLUSÃO (SOFT DELETE — desativa usuário)
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def excluir_usuario(actor: User, target: User) -> None:
+    """
+    Desativa um usuário (soft delete via is_active=False).
 
+    Raises:
+        PermissionDenied: ator sem permissão ou tentativa de excluir admin master
+        AutoExclusaoError: ator tentou se auto-excluir
+    """
     if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão.")
+        raise PermissionDenied("Sem permissão para gerenciar usuários.")
 
     if target == actor:
-        raise ValueError("Auto-exclusão bloqueada.")
+        raise AutoExclusaoError("Você não pode excluir sua própria conta.")
 
     if target.is_superuser:
-        raise PermissionDenied("Não pode excluir admin master.")
+        raise PermissionDenied("Não é possível excluir um administrador master.")
 
     target.is_active = False
     target.save(update_fields=["is_active"])
 
-    logger.info(
-        "Usuário desativado: %s por %s",
-        target.username,
-        actor.username
-    )
+    logger.info("Usuário desativado: %s por %s", target.username, actor.username)

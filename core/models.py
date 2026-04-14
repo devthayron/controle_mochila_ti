@@ -1,8 +1,10 @@
 """
-models.py — Apenas dados, relações e validações simples.
+models.py — Dados, relações e validações simples.
 
-Regra: sem lógica de negócio aqui.
-A criação do checklist é responsabilidade do viagem_service.criar_viagem().
+Padrões aplicados:
+- AtivoManager como manager padrão em todos os models principais
+- Método desativar() padronizado
+- all_objects para acesso irrestrito (admin, migrations, etc.)
 """
 
 from django.contrib.auth.models import User
@@ -10,7 +12,51 @@ from django.db import models
 from django.utils import timezone
 
 
-# ───────────────── POLÍTICA DE SENHA ─────────────────
+# ─────────────────────────────────────────────
+# MANAGER PADRÃO — filtra ativo=True automaticamente
+# ─────────────────────────────────────────────
+
+class AtivoManager(models.Manager):
+    """
+    Manager padrão que filtra registros inativos em TODAS as queries.
+    Use Model.all_objects para acesso irrestrito.
+    """
+    def get_queryset(self):
+        return super().get_queryset().filter(ativo=True)
+
+
+# ─────────────────────────────────────────────
+# MIXIN DE SOFT DELETE
+# ─────────────────────────────────────────────
+
+class SoftDeleteMixin(models.Model):
+    """
+    Mixin que adiciona soft delete padronizado.
+    Nunca deleta fisicamente — apenas marca ativo=False.
+    """
+    ativo = models.BooleanField(default=True)
+
+    objects     = AtivoManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        abstract = True
+
+    def desativar(self):
+        """Soft delete: marca como inativo."""
+        self.ativo = False
+        self.save(update_fields=["ativo"])
+
+    def reativar(self):
+        """Restaura registro inativo."""
+        self.ativo = True
+        self.save(update_fields=["ativo"])
+
+
+# ─────────────────────────────────────────────
+# POLÍTICA DE SENHA
+# ─────────────────────────────────────────────
+
 class PasswordPolicy(models.Model):
     user = models.OneToOneField(
         User,
@@ -27,10 +73,12 @@ class PasswordPolicy(models.Model):
         return f"{self.user.username} — trocar: {self.must_change_password}"
 
 
-# ───────────────── LOJA ─────────────────
-class Loja(models.Model):
+# ─────────────────────────────────────────────
+# LOJA
+# ─────────────────────────────────────────────
+
+class Loja(SoftDeleteMixin):
     nome      = models.CharField(max_length=100, unique=True)
-    ativo     = models.BooleanField(default=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -45,10 +93,12 @@ class Loja(models.Model):
         return not self.viagem_set.filter(status="andamento").exists()
 
 
-# ───────────────── ITEM ─────────────────
-class Item(models.Model):
+# ─────────────────────────────────────────────
+# ITEM
+# ─────────────────────────────────────────────
+
+class Item(SoftDeleteMixin):
     nome      = models.CharField(max_length=100, unique=True)
-    ativo     = models.BooleanField(default=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -66,10 +116,12 @@ class Item(models.Model):
         ).exists()
 
 
-# ───────────────── MOCHILA ─────────────────
-class Mochila(models.Model):
+# ─────────────────────────────────────────────
+# MOCHILA
+# ─────────────────────────────────────────────
+
+class Mochila(SoftDeleteMixin):
     nome  = models.CharField(max_length=100, default="Mochila")
-    ativo = models.BooleanField(default=True)
     itens = models.ManyToManyField(Item, through="MochilaItem", related_name="mochilas")
 
     class Meta:
@@ -96,7 +148,10 @@ class MochilaItem(models.Model):
         return f"{self.item} x{self.quantidade}"
 
 
-# ───────────────── VIAGEM ─────────────────
+# ─────────────────────────────────────────────
+# VIAGEM
+# ─────────────────────────────────────────────
+
 class Viagem(models.Model):
     STATUS_CHOICES = [
         ("andamento",  "Em andamento"),
@@ -129,8 +184,15 @@ class Viagem(models.Model):
     def __str__(self):
         return f"Viagem #{self.id} — {self.loja}"
 
+    @property
+    def em_andamento(self) -> bool:
+        return self.status == "andamento"
 
-# ───────────────── CHECKLIST ─────────────────
+
+# ─────────────────────────────────────────────
+# CHECKLIST
+# ─────────────────────────────────────────────
+
 class ChecklistItem(models.Model):
     viagem             = models.ForeignKey(Viagem, on_delete=models.CASCADE, related_name="checklist")
     item               = models.ForeignKey(Item,   on_delete=models.PROTECT)
