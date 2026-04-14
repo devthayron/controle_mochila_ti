@@ -1,14 +1,3 @@
-"""
-management/commands/setup_groups.py
-
-Cria os grupos (Admin, Supervisor, Usuário) e atribui as permissões corretas.
-Execute uma vez após migrate:
-
-    python manage.py setup_groups
-
-Idempotente: pode ser chamado múltiplas vezes sem efeitos colaterais.
-"""
-
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
@@ -66,17 +55,11 @@ class Command(BaseCommand):
         ("core", "view_item"),
     ]
 
-    # Admin herda tudo via is_superuser — apenas garantimos o grupo.
-
     def handle(self, *args, **options):
         self._create_admin_group()
         self._create_supervisor_group()
         self._create_usuario_group()
         self.stdout.write(self.style.SUCCESS("Grupos e permissões configurados com sucesso."))
-
-    # ──────────────────────────────────────────
-    # INTERNOS
-    # ──────────────────────────────────────────
 
     def _create_admin_group(self):
         group, created = Group.objects.get_or_create(name="Admin")

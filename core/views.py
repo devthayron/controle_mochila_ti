@@ -550,23 +550,33 @@ class ItemUpdateView(SupervisorRequiredMixin, UpdateView):
         return response
 
 
-class ItemDeleteView(SupervisorRequiredMixin, DeleteView):
-    model = Item
-    template_name = "core/confirm_delete.html"
-    success_url = reverse_lazy("item_list")
+class ItemDeleteView(SupervisorRequiredMixin, View):
+    def post(self, request, pk):
+        item = get_object_or_404(Item, pk=pk)
 
-    def get_context_data(self, **kwargs):
-        return {
-            **super().get_context_data(**kwargs),
-            "titulo": "Excluir Item",
-            "mensagem": f'Tem certeza que deseja excluir o item "{self.object.nome}"?',
-            "voltar_url": reverse_lazy("item_list"),
-        }
+        if not item.pode_ser_desativado():
+            messages.error(
+                request,
+                "Item está em uso em viagens em andamento e não pode ser desativado."
+            )
+            return redirect("item_list")
 
-    def form_valid(self, form):
-        _log(self.request.user, self.object, DELETION, "Item excluído")
-        messages.success(self.request, "Item excluído.")
-        return super().form_valid(form)
+        if not item.ativo:
+            messages.warning(request, "Item já está desativado.")
+            return redirect("item_list")
+
+        item.ativo = False
+        item.save(update_fields=["ativo"])
+
+        _log(
+            request.user,
+            item,
+            DELETION,  # pode manter por enquanto
+            "Item desativado (soft delete)"
+        )
+
+        messages.success(request, "Item desativado com sucesso.")
+        return redirect("item_list")
 
 
 # ──────────────────────────────────────────────

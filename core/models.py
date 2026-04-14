@@ -129,10 +129,6 @@ class Viagem(models.Model):
     def __str__(self):
         return f"Viagem #{self.id} — {self.loja}"
 
-    # NOTA: checklist NÃO é criado aqui.
-    # Responsabilidade do viagem_service.criar_viagem().
-    # Isso mantém o model limpo e testável isoladamente.
-
 
 # ───────────────── CHECKLIST ─────────────────
 class ChecklistItem(models.Model):

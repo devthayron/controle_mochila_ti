@@ -62,14 +62,22 @@
                     {% endif %}
                 </td>
                 <td>
-                    <div style="display:flex;gap:6px;">
+                    <div class="actions">
                         {% if user_profile.pode_editar %}
-                        <a href="{% url 'item_edit' item.pk %}" class="btn btn-ghost btn-sm" title="Editar">
-                            <i class="fa-solid fa-pen"></i>
-                        </a>
-                        <a href="{% url 'item_delete' item.pk %}" class="btn btn-ghost btn-sm" title="Excluir" style="color:var(--ap-red-light);">
-                            <i class="fa-solid fa-trash"></i>
-                        </a>
+                            <a href="{% url 'item_edit' item.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                                <i class="fa-solid fa-pen"></i>
+                            </a>
+                                {% if item.ativo %}
+                                <form method="post" action="{% url 'item_delete' item.pk %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-ghost btn-sm"
+                                            title="Desativar"
+                                            style="border:none; background:none; cursor:pointer;">
+                                        <i class="fa-solid fa-ban"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
                         {% endif %}
                     </div>
                 </td>
