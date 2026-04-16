@@ -1,25 +1,55 @@
-# db.sqlite3
-# static/
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.pyc
+
+# venv
 venv/
 env/
 .venv/
-*.log
-media/
-staticfiles/
+ENV/
+
+# build
+dist/
+build/
+*.egg-info/
+
+# tests/cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# OS
 .DS_Store
 Thumbs.db
+
+# env
 .env
 .env.*
 !.env.example
-DEPLOY.md
-ARCHITECTURE.md
-files.zip
+
+# archives
+*.zip
+*.tar
+*.tar.gz
+
+# static (optional)
+static/
+

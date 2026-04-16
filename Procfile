@@ -1,0 +1,1 @@
+web: gunicorn controle_mochila.wsgi --log-file -
