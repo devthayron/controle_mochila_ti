@@ -620,22 +620,34 @@ class UsuarioListView(AdminRequiredMixin, ListView):
         )
 
 
-class UsuarioCreateView(AdminRequiredMixin, View):
+class UsuarioCreateView(SupervisorRequiredMixin, View):
     template_name = "core/usuario_form.html"
 
     def _ctx(self, request, form, editing=False):
         u = request.user
         return {
-            "form": form, "editing": editing,
+            "form": form,
+            "editing": editing,
             "user_profile": _shim(u),
-            "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
+            "user_perms": {
+                "pode_editar": perms._pode_editar(u),
+                "is_admin": perms._is_admin(u),
+            },
         }
 
     def get(self, request):
-        return render(request, self.template_name, self._ctx(request, UsuarioCreateForm()))
+        form = UsuarioCreateForm()
+        if not perms._is_admin(request.user):
+            form.fields["nivel"].choices = [
+                choice for choice in form.fields["nivel"].choices
+                if choice[0] in ["usuario", "supervisor"]
+            ]
+
+        return render(request, self.template_name, self._ctx(request, form))
 
     def post(self, request):
         form = UsuarioCreateForm(request.POST)
+
         if not form.is_valid():
             return render(request, self.template_name, self._ctx(request, form))
 
@@ -648,13 +660,26 @@ class UsuarioCreateView(AdminRequiredMixin, View):
                 last_name=form.cleaned_data.get("last_name", ""),
                 email=form.cleaned_data.get("email", ""),
             )
+
         except (PermissionDenied, DomainError) as e:
             messages.error(request, str(e))
             return render(request, self.template_name, self._ctx(request, form))
 
-        _log(request.user, user, ADDITION, f"Usuário criado — nível: {form.cleaned_data['nivel']}")
-        messages.success(request, f"Usuário {user.username} criado. Senha padrão aplicada.")
-        return redirect("usuario_list")
+        _log(
+            request.user,
+            user,
+            ADDITION,
+            f"Usuário criado — nível: {form.cleaned_data['nivel']}"
+        )
+
+        messages.success(
+            request,
+            f"Usuário {user.username} criado. Senha padrão aplicada."
+        )
+
+        if perms._is_admin(request.user):
+            return redirect("usuario_list")
+        return redirect("dashboard")
 
 
 class UsuarioEditView(AdminRequiredMixin, View):

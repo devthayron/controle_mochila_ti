@@ -76,14 +76,13 @@ def criar_usuario(
     last_name: str = "",
     email: str = "",
 ) -> User:
-    """
-    Cria um novo usuário com senha padrão e troca obrigatória.
 
-    Raises:
-        PermissionDenied: ator sem permissão
-    """
     if not perms.pode_gerenciar_usuarios(actor):
         raise PermissionDenied("Sem permissão para gerenciar usuários.")
+
+    # 🔒 REGRA: supervisor não cria admin
+    if perms._is_supervisor(actor) and nivel == "admin":
+        raise PermissionDenied("Supervisor não pode criar admin.")
 
     user = User.objects.create(
         username=username,
@@ -93,6 +92,7 @@ def criar_usuario(
         is_staff=(nivel == "admin"),
         is_superuser=(nivel == "admin"),
     )
+
     user.set_password(DEFAULT_PASSWORD)
     user.save()
 
@@ -101,7 +101,6 @@ def criar_usuario(
 
     logger.info("Usuário criado: %s por %s", user.username, actor.username)
     return user
-
 
 # ──────────────────────────────────────────────
 # EDITAR USUÁRIO
@@ -117,21 +116,24 @@ def editar_usuario(
     last_name: str = "",
     email: str = "",
 ) -> User:
-    """
-    Edita dados e nível de acesso de um usuário.
 
-    Raises:
-        PermissionDenied: ator sem permissão
-    """
     if not perms.pode_gerenciar_usuarios(actor):
         raise PermissionDenied("Sem permissão para gerenciar usuários.")
+
+    # 🔒 supervisor não mexe com admin
+    if perms._is_supervisor(actor):
+        if nivel == "admin":
+            raise PermissionDenied("Supervisor não pode promover para admin.")
+
+        if get_nivel(target) == "admin":
+            raise PermissionDenied("Supervisor não pode editar admin.")
 
     target.username   = username
     target.first_name = first_name
     target.last_name  = last_name
     target.email      = email
-    target.is_staff      = (nivel == "admin")
-    target.is_superuser  = (nivel == "admin")
+    target.is_staff     = (nivel == "admin")
+    target.is_superuser = (nivel == "admin")
     target.save()
 
     _assign_group(target, nivel)
@@ -152,8 +154,8 @@ def resetar_senha(actor: User, target: User) -> None:
     Raises:
         PermissionDenied: ator sem permissão
     """
-    if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão para resetar senhas.")
+    if not perms._is_admin(actor):
+        raise PermissionDenied("Apenas administradores podem resetar senhas.")
 
     target.set_password(DEFAULT_PASSWORD)
     target.save()

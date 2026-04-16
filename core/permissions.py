@@ -2,15 +2,14 @@
 permissions.py — Camada de controle de acesso centralizada.
 
 Regras:
-  - Admin       → acesso total (via core.admin_access)
-  - Supervisor  → cria, edita, finaliza viagens; gerencia mochilas/lojas/itens
-  - Usuário     → somente leitura; vê apenas as próprias viagens
+  - Admin       → acesso total
+  - Supervisor  → operação + criação limitada de usuários
+  - Usuário     → somente leitura
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-
 from django.contrib.auth.models import User
 
 if TYPE_CHECKING:
@@ -59,7 +58,6 @@ def pode_finalizar_viagem(user: User) -> bool:
 
 
 def pode_editar_checklist(user: User, viagem: "Viagem") -> bool:
-    """Checklist só pode ser editado por quem tem acesso à viagem e ela está em andamento."""
     if not pode_ver_viagem(user, viagem):
         return False
     if not _pode_editar(user):
@@ -84,11 +82,54 @@ def pode_gerenciar_item(user: User) -> bool:
 
 
 # ──────────────────────────────────────────────
-# USUÁRIO / ADMIN
+# USUÁRIOS — CONTROLE GRANULAR
 # ──────────────────────────────────────────────
 
 def pode_gerenciar_usuarios(user: User) -> bool:
+    """Acesso geral à área (não define o que pode fazer)."""
+    return _is_admin(user) or _is_supervisor(user)
+
+
+def pode_criar_usuario(user: User, nivel: str) -> bool:
+    if _is_admin(user):
+        return True
+
+    if _is_supervisor(user):
+        return nivel in ["usuario", "supervisor"]
+
+    return False
+
+
+def pode_editar_usuario(user: User, target: User, nivel: str) -> bool:
+    if _is_admin(user):
+        return True
+
+    if _is_supervisor(user):
+        # não pode promover para admin
+        if nivel not in ["usuario", "supervisor"]:
+            return False
+
+        # não pode mexer em admin
+        if _is_admin(target):
+            return False
+
+        return True
+
+    return False
+
+
+def pode_resetar_senha(user: User) -> bool:
     return _is_admin(user)
+
+
+def pode_excluir_usuario(user: User, target: User) -> bool:
+    if not _is_admin(user):
+        return False
+
+    if target.is_superuser:
+        return False
+
+    return True
 
 
 def pode_acessar_admin(user: User) -> bool:
@@ -100,10 +141,6 @@ def pode_acessar_admin(user: User) -> bool:
 # ──────────────────────────────────────────────
 
 def filtrar_viagens(user: User, qs):
-    """
-    Admin/Supervisor → todas as viagens.
-    Usuário comum   → somente as próprias viagens.
-    """
     if _pode_editar(user):
         return qs
     return qs.filter(responsavel=user)
