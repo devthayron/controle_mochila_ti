@@ -16,6 +16,7 @@ urlpatterns = [
     path("viagens/<int:pk>/",             ViagemDetailView.as_view(),   name="viagem_detail"),
     path("viagens/<int:pk>/finalizar/",   FinalizarViagemView.as_view(),name="viagem_finalizar"),
     path("viagens/<int:pk>/checklist/",   ChecklistSaveView.as_view(),  name="viagem_checklist_save"),
+    path("viagem/<int:pk>/pdf/",         ViagemChecklistPDFView.as_view(),name="viagem_checklist_pdf"),
 
     # MOCHILAS
     path("mochilas/",                  MochilaListView.as_view(),   name="mochila_list"),

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial; font-size: 12px; }
+        h1 { text-align: center; margin-bottom: 20px; }
+
+        .info {
+            margin-bottom: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: center;
+        }
+
+        th {
+            background: #eee;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Checklist da Viagem {{ viagem.loja.nome }} - {{ viagem.id }}</h1>
+
+<div class="info">
+    <p><strong>Responsável:</strong> {{ viagem.responsavel.username }}</p>
+    <p><strong>Loja:</strong> {{ viagem.loja.nome }}</p>
+    <p><strong>Mochila:</strong> {{ viagem.mochila.nome }}</p>
+    <p><strong>Data saída:</strong> {{ viagem.data_saida }}</p>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Item</th>
+            <th>Qtd</th>
+            <th>Saída OK</th>
+            <th>Retorno OK</th>
+            <th>Obs</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ci in checklist_items %}
+        <tr>
+            <td>{{ ci.item.nome }}</td>
+            <td>{{ ci.quantidade }}</td>
+            <td>{% if ci.saida_ok %}SIM{% else %}NÃO{% endif %}</td>
+            <td>{% if ci.retorno_ok %}SIM{% else %}NÃO{% endif %}</td>
+            <td>{{ ci.observacao_retorno }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>

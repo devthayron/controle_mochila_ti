@@ -67,6 +67,16 @@ from .services.viagem_service import (
     salvar_checklist,
 )
 
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from weasyprint import HTML
+from django.shortcuts import get_object_or_404
+from django.core.exceptions import PermissionDenied
+
+from .models import Viagem
+from . import permissions as perms
+
+
 logger = logging.getLogger("core")
 
 
@@ -205,6 +215,32 @@ class DashboardView(PermContextMixin, TemplateView):
 # ──────────────────────────────────────────────
 # VIAGENS
 # ──────────────────────────────────────────────
+
+
+class ViagemChecklistPDFView(View):
+    def get(self, request, pk):
+        viagem = get_object_or_404(Viagem, pk=pk)
+
+        # regra de acesso (não é negócio, é permissão)
+        if not perms.pode_ver_viagem(request.user, viagem):
+            raise PermissionDenied("Sem acesso a esta viagem.")
+
+        checklist = viagem.checklist.select_related("item").order_by("item__nome")
+
+        context = {
+            "viagem": viagem,
+            "checklist_items": checklist,
+        }
+
+        html_string = render_to_string("core/viagem_checklist_pdf.html", context)
+
+        pdf = HTML(string=html_string).write_pdf()
+
+        response = HttpResponse(pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="viagem_{viagem.id}_checklist.pdf"'
+
+        return response
+
 
 class ViagemListView(PermContextMixin, ListView):
     model = Viagem

@@ -107,7 +107,12 @@
             <i class="fa-solid fa-list-check" style="color:var(--ap-red);"></i>
             <h2>Checklist de Equipamentos</h2>
         </div>
-        <span style="font-size:.8rem;color:var(--text-muted);">{{ checklist_items.count }} item(ns)</span>
+        <span style="font-size:.8rem;color:var(--text-muted);">({{ checklist_items.count }} itens)</span>
+        {% if viagem.status == 'finalizada' %}
+            <a style="margin-left:auto;" href="{% url 'viagem_checklist_pdf' viagem.pk %}" class="btn btn-primary" target="_blank">
+                <i class="fa-solid fa-file-pdf"></i> Imprimir PDF
+            </a>
+        {% endif %}
     </div>
 
     {% if checklist_items %}
