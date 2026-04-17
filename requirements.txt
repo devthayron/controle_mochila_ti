@@ -8,7 +8,7 @@ dotenv==0.9.9
 fonttools==4.62.1
 pillow==12.2.0
 psycopg==3.3.3
-psycopg-binary==3.3.3
+psycopg[binary]==3.3.3
 pycparser==3.0
 pydyf==0.12.1
 pyphen==0.17.2
@@ -20,3 +20,5 @@ typing_extensions==4.15.0
 weasyprint==68.1
 webencodings==0.5.1
 zopfli==0.4.1
+whitenoise==6.8.2
+gunicorn==22.0.0
