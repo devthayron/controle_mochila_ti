@@ -5,6 +5,7 @@ services/viagem_service.py — lógica de negócio pura de viagens.
 from __future__ import annotations
 
 import logging
+from django.utils import timezone
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
@@ -94,7 +95,8 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
         raise ViagemJaFinalizada("Viagem já finalizada.")
 
     viagem.status = "finalizada"
-    viagem.data_retorno = viagem.data_retorno or __import__("django.utils.timezone").utils.timezone.now()
+    viagem.data_retorno = viagem.data_retorno or timezone.now()
+
     viagem.save(update_fields=["status", "data_retorno"])
 
     logger.info("Viagem #%s finalizada por %s", viagem.pk, user.username)
@@ -126,8 +128,10 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict):
         if not data:
             continue
 
-        ci.saida_ok = bool(data.get("saida_ok"))
+        if perms._pode_editar(user):
+            ci.saida_ok = bool(data.get("saida_ok"))
         ci.retorno_ok = bool(data.get("retorno_ok"))
+
         ci.observacao_retorno = (data.get("observacao_retorno") or "")[:255]
 
         to_update.append(ci)
@@ -149,7 +153,7 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict):
 
 
 # ──────────────────────────────────────────────
-# HELPER
+# HELPER (VIEW → SERVICE MAPPER)
 # ──────────────────────────────────────────────
 
 def payload_from_post(post_data, checklist_ids: list[int]) -> dict:

@@ -152,7 +152,8 @@
                     <td style="text-align:center;">
                         <label class="toggle-wrap" style="justify-content:center;">
                             <div class="toggle">
-                                <input type="checkbox" name="saida_ok_{{ ci.id }}"
+                                <input type="checkbox"
+                                    name="saida_ok_{{ ci.id }}"
                                     {% if ci.saida_ok %}checked{% endif %}
                                     {% if viagem.status == 'finalizada' %}disabled{% endif %}>
                                 <div class="toggle-slider"></div>
@@ -162,8 +163,10 @@
                     <td style="text-align:center;">
                         <label class="toggle-wrap" style="justify-content:center;">
                             <div class="toggle">
-                                <input type="checkbox" name="retorno_ok_{{ ci.id }}"
+                                <input type="checkbox"
+                                    name="retorno_ok_{{ ci.id }}"
                                     {% if ci.retorno_ok %}checked{% endif %}
+                                    {% if not ci.saida_ok %}disabled{% endif %}
                                     {% if viagem.status == 'finalizada' %}disabled{% endif %}>
                                 <div class="toggle-slider"></div>
                             </div>

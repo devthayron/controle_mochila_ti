@@ -53,6 +53,12 @@ def _pode_editar(user: User) -> bool:
 # VIAGENS
 # ══════════════════════════════════════════════
 
+def pode_ver_checklist_saida_ok(user: User) -> bool:
+    return _pode_editar(user)
+
+def pode_ver_checklist_retorno_ok(user: User) -> bool:
+    return _pode_editar(user)
+
 def pode_listar_viagens(user: User) -> bool:
     """Qualquer usuário autenticado e ativo pode listar viagens (filtradas pelo queryset)."""
     return user.is_authenticated and user.is_active
