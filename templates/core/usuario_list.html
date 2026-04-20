@@ -15,11 +15,13 @@
         <p>Controle de acesso ao sistema</p>
     </div>
     <div class="page-header-right">
+        {# Admin e Supervisor podem criar usuários #}
         <a href="{% url 'usuario_create' %}" class="btn btn-primary">
             <i class="fa-solid fa-user-plus"></i> Novo Usuário
         </a>
     </div>
 </div>
+
 
 <div class="card">
     <div class="card-header">
@@ -92,11 +94,27 @@
                 </td>
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;">
-                        <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
-                            <i class="fa-solid fa-pen"></i>
-                        </a>
-                        <!-- Reset de senha: somente admin, nunca para si mesmo -->
+
+                        {# Editar — Admin pode editar qualquer um; Supervisor só edita não-admins #}
                         {% if u != request.user %}
+                            {% if user_profile.is_admin %}
+                                <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                                    <i class="fa-solid fa-pen"></i>
+                                </a>
+                            {% elif user_profile.is_supervisor and not u.is_superuser %}
+                                <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                                    <i class="fa-solid fa-pen"></i>
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            {# Usuário pode editar a si mesmo #}
+                            <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar meu perfil">
+                                <i class="fa-solid fa-pen"></i>
+                            </a>
+                        {% endif %}
+
+                        {# Reset de senha — SOMENTE Admin, nunca para si mesmo #}
+                        {% if user_profile.is_admin and u != request.user %}
                         <form method="post" action="{% url 'usuario_reset_senha' u.pk %}"
                               onsubmit="return confirm('Redefinir senha de {{ u.username }} para o padrão?')">
                             {% csrf_token %}
@@ -105,6 +123,10 @@
                                 <i class="fa-solid fa-key"></i>
                             </button>
                         </form>
+                        {% endif %}
+
+                        {# Excluir — SOMENTE Admin, nunca para si mesmo, nunca para superuser #}
+                        {% if user_profile.is_admin and u != request.user and not u.is_superuser %}
                         <form method="post" action="{% url 'usuario_delete' u.pk %}"
                               onsubmit="return confirm('Excluir o usuário {{ u.username }}?')">
                             {% csrf_token %}
@@ -114,6 +136,7 @@
                             </button>
                         </form>
                         {% endif %}
+
                     </div>
                 </td>
             </tr>
@@ -134,35 +157,38 @@
 
 <!-- Legenda de níveis -->
 <div class="card" style="margin-top:16px;">
-    <div class="card-header"><h3>Níveis de Acesso</h3></div>
+    <div class="card-header">
+        <h3>Níveis de Acesso</h3>
+    </div>
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:16px 20px;">
-        <div style="display:flex;gap:12px;align-items:flex-start;">
-            <div style="width:36px;height:36px;border-radius:8px;background:rgba(200,16,46,.12);display:flex;align-items:center;justify-content:center;color:var(--ap-red-light);flex-shrink:0;">
-                <i class="fa-solid fa-shield-halved"></i>
-            </div>
-            <div>
-                <div style="font-weight:600;margin-bottom:2px;">Administrador</div>
-                <div style="font-size:.8rem;color:var(--text-secondary);">Acesso total + gerenciar usuários + resetar senhas</div>
-            </div>
-        </div>
+
+        <!-- Supervisor -->
         <div style="display:flex;gap:12px;align-items:flex-start;">
             <div style="width:36px;height:36px;border-radius:8px;background:rgba(168,85,247,.12);display:flex;align-items:center;justify-content:center;color:#C084FC;flex-shrink:0;">
                 <i class="fa-solid fa-user-tie"></i>
             </div>
             <div>
                 <div style="font-weight:600;margin-bottom:2px;">Supervisor</div>
-                <div style="font-size:.8rem;color:var(--text-secondary);">Criar, editar e excluir registros. Sem acesso a senhas.</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">
+                    Gerencia operações do sistema · cria e edita registros · cria usuários operacionais
+                </div>
             </div>
         </div>
+
+        <!-- Usuário -->
         <div style="display:flex;gap:12px;align-items:flex-start;">
             <div style="width:36px;height:36px;border-radius:8px;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center;color:#60A5FA;flex-shrink:0;">
                 <i class="fa-solid fa-user"></i>
             </div>
             <div>
                 <div style="font-weight:600;margin-bottom:2px;">Usuário</div>
-                <div style="font-size:.8rem;color:var(--text-secondary);">Somente leitura. Não pode criar ou excluir.</div>
+                <div style="font-size:.8rem;color:var(--text-secondary);">
+                    visualização de dados operacionais
+                </div>
             </div>
         </div>
+
     </div>
 </div>
 {% endblock %}

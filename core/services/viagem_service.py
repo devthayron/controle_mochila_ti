@@ -1,5 +1,5 @@
 """
-services/viagem_service.py — Toda a lógica de negócio de viagens.
+services/viagem_service.py — lógica de negócio pura de viagens.
 """
 
 from __future__ import annotations
@@ -9,7 +9,6 @@ import logging
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.utils import timezone
 
 from core import permissions as perms
 from ..exceptions import (
@@ -29,42 +28,36 @@ logger = logging.getLogger("core.services.viagem")
 
 @transaction.atomic
 def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viagem:
-    """
-    Cria uma nova viagem e gera o checklist automaticamente.
 
-    Raises:
-        PermissionDenied: usuário sem permissão
-        MochilaInativaError: mochila desativada
-        MochilaVaziaError: mochila sem itens
-        MochilaEmUsoError: mochila já em viagem ativa
-    """
     if not perms.pode_criar_viagem(user):
         raise PermissionDenied("Sem permissão para criar viagens.")
 
-    # trava mochila — previne race condition
-    mochila = Mochila.all_objects.select_for_update().get(pk=mochila.pk)
+    mochila = (
+        Mochila.all_objects
+        .select_for_update()
+        .get(pk=mochila.pk)
+    )
 
     if not mochila.ativo:
-        raise MochilaInativaError(f'A mochila "{mochila.nome}" está inativa.')
+        raise MochilaInativaError("Mochila inativa.")
 
-    itens = list(mochila.mochilaitem_set.select_related("item"))
+    itens = list(
+        mochila.mochilaitem_set.select_related("item")
+    )
 
     if not itens:
-        raise MochilaVaziaError(f'A mochila "{mochila.nome}" não possui itens.')
+        raise MochilaVaziaError("Mochila sem itens.")
 
-    if Viagem.objects.select_for_update().filter(
+    if Viagem.objects.filter(
         mochila=mochila,
         status="andamento",
     ).exists():
-        raise MochilaEmUsoError(
-            f'A mochila "{mochila.nome}" já está em uso em outra viagem.'
-        )
+        raise MochilaEmUsoError("Mochila já está em uso.")
 
     viagem = Viagem.objects.create(
         responsavel=responsavel,
         loja=loja,
         mochila=mochila,
-        data_saida=timezone.now(),
         status="andamento",
     )
 
@@ -87,21 +80,21 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
 
 @transaction.atomic
 def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
-    """
-    Finaliza uma viagem em andamento.
 
-    Raises:
-        PermissionDenied: usuário sem permissão
-        ViagemJaFinalizada: viagem já estava finalizada
-    """
     if not perms.pode_finalizar_viagem(user):
-        raise PermissionDenied("Sem permissão para finalizar viagens.")
+        raise PermissionDenied("Sem permissão para finalizar viagem.")
+
+    viagem = (
+        Viagem.objects
+        .select_for_update()
+        .get(pk=viagem.pk)
+    )
 
     if viagem.status != "andamento":
-        raise ViagemJaFinalizada("Esta viagem já foi finalizada.")
+        raise ViagemJaFinalizada("Viagem já finalizada.")
 
     viagem.status = "finalizada"
-    viagem.data_retorno = timezone.now()
+    viagem.data_retorno = viagem.data_retorno or __import__("django.utils.timezone").utils.timezone.now()
     viagem.save(update_fields=["status", "data_retorno"])
 
     logger.info("Viagem #%s finalizada por %s", viagem.pk, user.username)
@@ -109,33 +102,34 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
 
 
 # ──────────────────────────────────────────────
-# SALVAR CHECKLIST
+# CHECKLIST
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def salvar_checklist(user: User, viagem: Viagem, payload: dict) -> list[ChecklistItem]:
-
-    # 🔒 lock da viagem (evita race condition)
-    viagem = Viagem.objects.select_for_update().get(pk=viagem.pk)
+def salvar_checklist(user: User, viagem: Viagem, payload: dict):
 
     if not perms.pode_editar_checklist(user, viagem):
-        raise PermissionDenied("Sem permissão para editar este checklist.")
+        raise PermissionDenied("Sem permissão para checklist.")
 
-    # 🔒 reforço de regra crítica
-    if viagem.status != "andamento":
-        raise PermissionDenied("Checklist não pode ser alterado após finalização.")
+    viagem = (
+        Viagem.objects
+        .select_for_update()
+        .get(pk=viagem.pk)
+    )
 
-    checklist = list(viagem.checklist.select_related("item"))
+    checklist = viagem.checklist.select_related("item")
+
     to_update = []
 
     for ci in checklist:
-        if ci.pk not in payload:
+        data = payload.get(ci.pk)
+        if not data:
             continue
 
-        data = payload[ci.pk]
-        ci.saida_ok           = bool(data.get("saida_ok"))
-        ci.retorno_ok         = bool(data.get("retorno_ok"))
-        ci.observacao_retorno = str(data.get("observacao_retorno", ""))[:255]
+        ci.saida_ok = bool(data.get("saida_ok"))
+        ci.retorno_ok = bool(data.get("retorno_ok"))
+        ci.observacao_retorno = (data.get("observacao_retorno") or "")[:255]
+
         to_update.append(ci)
 
     if to_update:
@@ -146,21 +140,23 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict) -> list[Checklis
 
     logger.info(
         "Checklist viagem #%s atualizado por %s (%d itens)",
-        viagem.pk, user.username, len(to_update),
+        viagem.pk,
+        user.username,
+        len(to_update),
     )
+
     return to_update
 
 
 # ──────────────────────────────────────────────
-# HELPER — constrói payload a partir do POST
+# HELPER
 # ──────────────────────────────────────────────
 
 def payload_from_post(post_data, checklist_ids: list[int]) -> dict:
-    """Constrói o dict de payload a partir de dados brutos do POST."""
     return {
         cid: {
-            "saida_ok":           post_data.get(f"saida_ok_{cid}") == "on",
-            "retorno_ok":         post_data.get(f"retorno_ok_{cid}") == "on",
+            "saida_ok": post_data.get(f"saida_ok_{cid}") == "on",
+            "retorno_ok": post_data.get(f"retorno_ok_{cid}") == "on",
             "observacao_retorno": post_data.get(f"obs_{cid}", ""),
         }
         for cid in checklist_ids

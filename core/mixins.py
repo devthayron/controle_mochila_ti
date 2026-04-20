@@ -12,7 +12,7 @@ from . import permissions as perms
 
 
 # ──────────────────────────────────────────────
-# BASE MIXIN
+# BASE MIXIN — injeta contexto de permissões
 # ──────────────────────────────────────────────
 
 class PermContextMixin(LoginRequiredMixin):
@@ -24,10 +24,10 @@ class PermContextMixin(LoginRequiredMixin):
         context = super().get_context_data(**kwargs)
         u = self.request.user
         context["user_perms"] = {
-            "pode_editar":             perms._pode_editar(u),
-            "is_admin":                perms._is_admin(u),
-            "is_supervisor":           perms._is_supervisor(u),
-            "pode_gerenciar_usuarios": perms.pode_gerenciar_usuarios(u),
+            "pode_editar":           perms._pode_editar(u),
+            "is_admin":              perms._is_admin(u),
+            "is_supervisor":         perms._is_supervisor(u),
+            "pode_acessar_usuarios": perms.pode_acessar_area_usuarios(u),
         }
         context["user_profile"] = _LegacyProfileShim(u)
         return context
@@ -55,9 +55,13 @@ class _LegacyProfileShim:
     def is_usuario(self):
         return not perms._pode_editar(self._user)
 
+    @property
+    def pode_acessar_usuarios(self):
+        return perms.pode_acessar_area_usuarios(self._user)
+
 
 # ──────────────────────────────────────────────
-# SUPERVISOR MIXIN
+# SUPERVISOR MIXIN — Admin ou Supervisor
 # ──────────────────────────────────────────────
 
 class SupervisorRequiredMixin(PermContextMixin):
@@ -74,7 +78,24 @@ class SupervisorRequiredMixin(PermContextMixin):
 
 
 # ──────────────────────────────────────────────
-# ADMIN MIXIN
+# USUARIO AREA MIXIN — Admin ou Supervisor (lista/cria)
+# ──────────────────────────────────────────────
+
+class UsuarioAreaMixin(PermContextMixin):
+    """Acesso à área de usuários: Admin e Supervisor."""
+
+    def dispatch(self, request, *args, **kwargs):
+        result = super().dispatch(request, *args, **kwargs)
+        if not request.user.is_authenticated:
+            return result
+        if not perms.pode_acessar_area_usuarios(request.user):
+            messages.error(request, "Você não tem permissão para acessar esta área.")
+            return redirect("dashboard")
+        return result
+
+
+# ──────────────────────────────────────────────
+# ADMIN MIXIN — somente Admin
 # ──────────────────────────────────────────────
 
 class AdminRequiredMixin(PermContextMixin):

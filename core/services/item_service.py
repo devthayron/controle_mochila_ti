@@ -23,31 +23,36 @@ logger = logging.getLogger("core.services.item")
 
 @transaction.atomic
 def desativar_item(user: User, item: Item) -> Item:
-    """
-    Soft delete do item.
 
-    Raises:
-        PermissionDenied: usuário sem permissão
-        ItemEmUsoError: item em viagem ativa
-    """
     if not perms.pode_gerenciar_item(user):
         raise PermissionDenied("Sem permissão para desativar itens.")
 
-    item = Item.all_objects.select_for_update().get(pk=item.pk)
+    item = (
+        Item.all_objects
+        .select_for_update()
+        .get(pk=item.pk)
+    )
 
+    # 🔒 regra de domínio já delegada ao model (correto)
     if not item.pode_ser_desativado():
         raise ItemEmUsoError(
             f'O item "{item.nome}" está em uso em viagens ativas e não pode ser desativado.'
         )
 
+    # 🔒 idempotência correta
     if not item.ativo:
-        # Idempotente — já estava desativado, não é erro
         logger.info("Item #%s já estava desativado.", item.pk)
         return item
 
     item.desativar()
 
-    logger.info("Item #%s (%s) desativado por %s", item.pk, item.nome, user.username)
+    logger.info(
+        "Item #%s (%s) desativado por %s",
+        item.pk,
+        item.nome,
+        user.username,
+    )
+
     return item
 
 
@@ -57,17 +62,28 @@ def desativar_item(user: User, item: Item) -> Item:
 
 @transaction.atomic
 def reativar_item(user: User, item: Item) -> Item:
-    """
-    Reativa um item desativado.
 
-    Raises:
-        PermissionDenied: usuário sem permissão
-    """
     if not perms.pode_gerenciar_item(user):
         raise PermissionDenied("Sem permissão para reativar itens.")
 
-    item = Item.all_objects.select_for_update().get(pk=item.pk)
+    item = (
+        Item.all_objects
+        .select_for_update()
+        .get(pk=item.pk)
+    )
+
+    # 🔒 idempotência opcional (boa prática)
+    if item.ativo:
+        logger.info("Item #%s já estava ativo.", item.pk)
+        return item
+
     item.reativar()
 
-    logger.info("Item #%s (%s) reativado por %s", item.pk, item.nome, user.username)
+    logger.info(
+        "Item #%s (%s) reativado por %s",
+        item.pk,
+        item.nome,
+        user.username,
+    )
+
     return item

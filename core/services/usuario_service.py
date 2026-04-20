@@ -19,9 +19,9 @@ logger = logging.getLogger("core.services.usuario")
 DEFAULT_PASSWORD = "Dti@paraiba"
 
 _NIVEL_TO_GROUP = {
-    "admin":      "Admin",
+    "admin": "Admin",
     "supervisor": "Supervisor",
-    "usuario":    "Usuário",
+    "usuario": "Usuário",
 }
 
 _GROUP_TO_NIVEL = {v: k for k, v in _NIVEL_TO_GROUP.items()}
@@ -77,12 +77,8 @@ def criar_usuario(
     email: str = "",
 ) -> User:
 
-    if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão para gerenciar usuários.")
-
-    # 🔒 REGRA: supervisor não cria admin
-    if perms._is_supervisor(actor) and nivel == "admin":
-        raise PermissionDenied("Supervisor não pode criar admin.")
+    if not perms.pode_criar_usuario(actor, nivel):
+        raise PermissionDenied("Sem permissão para criar usuário neste nível.")
 
     user = User.objects.create(
         username=username,
@@ -102,6 +98,7 @@ def criar_usuario(
     logger.info("Usuário criado: %s por %s", user.username, actor.username)
     return user
 
+
 # ──────────────────────────────────────────────
 # EDITAR USUÁRIO
 # ──────────────────────────────────────────────
@@ -117,22 +114,14 @@ def editar_usuario(
     email: str = "",
 ) -> User:
 
-    if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão para gerenciar usuários.")
+    if not perms.pode_editar_usuario(actor, target, nivel):
+        raise PermissionDenied("Sem permissão para editar este usuário.")
 
-    # 🔒 supervisor não mexe com admin
-    if perms._is_supervisor(actor):
-        if nivel == "admin":
-            raise PermissionDenied("Supervisor não pode promover para admin.")
-
-        if get_nivel(target) == "admin":
-            raise PermissionDenied("Supervisor não pode editar admin.")
-
-    target.username   = username
+    target.username = username
     target.first_name = first_name
-    target.last_name  = last_name
-    target.email      = email
-    target.is_staff     = (nivel == "admin")
+    target.last_name = last_name
+    target.email = email
+    target.is_staff = (nivel == "admin")
     target.is_superuser = (nivel == "admin")
     target.save()
 
@@ -148,14 +137,9 @@ def editar_usuario(
 
 @transaction.atomic
 def resetar_senha(actor: User, target: User) -> None:
-    """
-    Redefine a senha de um usuário para o padrão e força troca.
 
-    Raises:
-        PermissionDenied: ator sem permissão
-    """
-    if not perms._is_admin(actor):
-        raise PermissionDenied("Apenas administradores podem resetar senhas.")
+    if not perms.pode_resetar_senha(actor):
+        raise PermissionDenied("Sem permissão para resetar senha.")
 
     target.set_password(DEFAULT_PASSWORD)
     target.save()
@@ -173,13 +157,7 @@ def resetar_senha(actor: User, target: User) -> None:
 
 @transaction.atomic
 def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
-    """
-    Troca a senha do usuário e libera a flag de troca obrigatória.
 
-    Raises:
-        SenhaIncorretaError: senha atual incorreta
-        SenhaFracaError: nova senha não atende critérios
-    """
     if not user.check_password(senha_atual):
         raise SenhaIncorretaError("Senha atual incorreta.")
 
@@ -187,7 +165,7 @@ def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
         raise SenhaFracaError("A senha deve ter no mínimo 8 caracteres.")
 
     if nova_senha == DEFAULT_PASSWORD:
-        raise SenhaFracaError("A nova senha não pode ser igual à senha padrão do sistema.")
+        raise SenhaFracaError("Não pode usar a senha padrão.")
 
     user.set_password(nova_senha)
     user.save()
@@ -200,26 +178,17 @@ def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
 
 
 # ──────────────────────────────────────────────
-# EXCLUSÃO (SOFT DELETE — desativa usuário)
+# EXCLUSÃO (SOFT DELETE)
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def excluir_usuario(actor: User, target: User) -> None:
-    """
-    Desativa um usuário (soft delete via is_active=False).
 
-    Raises:
-        PermissionDenied: ator sem permissão ou tentativa de excluir admin master
-        AutoExclusaoError: ator tentou se auto-excluir
-    """
-    if not perms.pode_gerenciar_usuarios(actor):
-        raise PermissionDenied("Sem permissão para gerenciar usuários.")
+    if not perms.pode_excluir_usuario(actor, target):
+        raise PermissionDenied("Sem permissão para excluir usuário.")
 
     if target == actor:
         raise AutoExclusaoError("Você não pode excluir sua própria conta.")
-
-    if target.is_superuser:
-        raise PermissionDenied("Não é possível excluir um administrador master.")
 
     target.is_active = False
     target.save(update_fields=["is_active"])

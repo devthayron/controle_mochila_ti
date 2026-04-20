@@ -49,36 +49,9 @@
         </div>
 
         <div class="form-group">
-            <label>
-                <i class="fa-solid fa-shield-halved" style="color:var(--text-muted);margin-right:6px;"></i>
-                Nível de Acesso
-            </label>
-
+            <label><i class="fa-solid fa-shield-halved" style="color:var(--text-muted);margin-right:6px;"></i>Nível de Acesso</label>
             {{ form.nivel }}
 
-            <span style="font-size:.78rem;color:var(--text-muted);margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
-
-                {% if user_profile.is_admin %}
-                    <span>
-                        <i class="fa-solid fa-shield-halved" style="color:var(--ap-red-light);"></i>
-                        Admin: acesso total
-                    </span>
-                    &nbsp;|&nbsp;
-                {% endif %}
-
-                <span>
-                    <i class="fa-solid fa-user-tie" style="color:#C084FC;"></i>
-                    Supervisor: gerencia operações
-                </span>
-
-                &nbsp;|&nbsp;
-
-                <span>
-                    <i class="fa-solid fa-user" style="color:#60A5FA;"></i>
-                    Usuário: somente leitura
-                </span>
-
-            </span>
         </div>
 
         {% if not editing %}

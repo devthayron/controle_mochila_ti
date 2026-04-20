@@ -62,25 +62,21 @@
             <i class="fa-solid fa-store"></i> Lojas
         </a>
 
-        {% if user_profile.is_admin %}
-            <span class="nav-section-label">Administração</span>
-
-            <a href="{% url 'usuario_list' %}" class="nav-item {% block nav_usuarios %}{% endblock %}">
-                <i class="fa-solid fa-users-gear"></i> Usuários
-            </a>
-
-            <a href="/admin/" class="nav-item" target="_blank" rel="noopener">
-                <i class="fa-solid fa-sliders"></i> Painel Admin
-                <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.6rem;margin-left:auto;opacity:.5;"></i>
-            </a>
+        {# Usuários: visível para Admin e Supervisor #}
+        {% if user_profile.pode_acessar_usuarios %}
+        <span class="nav-section-label">Usuários</span>
+        <a href="{% url 'usuario_list' %}" class="nav-item {% block nav_usuarios %}{% endblock %}">
+            <i class="fa-solid fa-users-gear"></i> Usuários
+        </a>
         {% endif %}
 
-        {% if user_profile.is_supervisor %}
-            <span class="nav-section-label">Equipe</span>
-
-            <a href="{% url 'usuario_create' %}" class="nav-item">
-                <i class="fa-solid fa-user-plus"></i> Criar Usuário
-            </a>
+        {# Administração: exclusivo do Admin #}
+        {% if user_profile.is_admin %}
+        <span class="nav-section-label">Administração</span>
+        <a href="/admin/" class="nav-item" target="_blank" rel="noopener">
+            <i class="fa-solid fa-sliders"></i> Painel Admin
+            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.6rem;margin-left:auto;opacity:.5;"></i>
+        </a>
         {% endif %}
     </nav>
 
