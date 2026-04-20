@@ -221,10 +221,8 @@ class ViagemChecklistPDFView(View):
     def get(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
 
-        # regra de acesso (não é negócio, é permissão)
         if not perms.pode_ver_viagem(request.user, viagem):
             raise PermissionDenied("Sem acesso a esta viagem.")
-
         checklist = viagem.checklist.select_related("item").order_by("item__nome")
 
         context = {
@@ -359,13 +357,21 @@ class FinalizarViagemView(SupervisorRequiredMixin, View):
 class ChecklistSaveView(PermContextMixin, View):
     def post(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
-        if not perms.pode_ver_viagem(request.user, viagem):
-            messages.error(request, "Você não tem acesso a esta viagem.")
-            return redirect("viagem_list")
+
+        # 🔒 valida permissão correta (edição, não só visualização)
+        if not perms.pode_editar_checklist(request.user, viagem):
+            messages.error(request, "Você não pode editar este checklist.")
+            return redirect("viagem_detail", pk=pk)
+
         checklist_ids = list(viagem.checklist.values_list("pk", flat=True))
         payload = payload_from_post(request.POST, checklist_ids)
+
         try:
-            salvar_checklist(user=request.user, viagem=viagem, payload=payload)
+            salvar_checklist(
+                user=request.user,
+                viagem=viagem,
+                payload=payload
+            )
         except PermissionDenied as e:
             messages.error(request, str(e))
             return redirect("viagem_detail", pk=pk)

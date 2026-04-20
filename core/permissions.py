@@ -56,14 +56,17 @@ def pode_criar_viagem(user: User) -> bool:
 def pode_finalizar_viagem(user: User) -> bool:
     return _pode_editar(user)
 
-
 def pode_editar_checklist(user: User, viagem: "Viagem") -> bool:
     if not pode_ver_viagem(user, viagem):
         return False
-    if not _pode_editar(user):
-        return False
-    return viagem.status == "andamento"
 
+    if viagem.status != "andamento":
+        return False
+
+    if _pode_editar(user):
+        return True
+
+    return viagem.responsavel_id == user.pk
 
 # ──────────────────────────────────────────────
 # MOCHILA / LOJA / ITEM

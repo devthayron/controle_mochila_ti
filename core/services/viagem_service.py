@@ -114,21 +114,23 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
 
 @transaction.atomic
 def salvar_checklist(user: User, viagem: Viagem, payload: dict) -> list[ChecklistItem]:
-    """
-    Salva o checklist de uma viagem em andamento.
 
-    Raises:
-        PermissionDenied: usuário sem permissão ou viagem finalizada
-    """
+    # 🔒 lock da viagem (evita race condition)
+    viagem = Viagem.objects.select_for_update().get(pk=viagem.pk)
+
     if not perms.pode_editar_checklist(user, viagem):
         raise PermissionDenied("Sem permissão para editar este checklist.")
+
+    # 🔒 reforço de regra crítica
+    if viagem.status != "andamento":
+        raise PermissionDenied("Checklist não pode ser alterado após finalização.")
 
     checklist = list(viagem.checklist.select_related("item"))
     to_update = []
 
     for ci in checklist:
         if ci.pk not in payload:
-            continue  # ignora itens não enviados (seguro)
+            continue
 
         data = payload[ci.pk]
         ci.saida_ok           = bool(data.get("saida_ok"))
