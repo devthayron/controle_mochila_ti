@@ -142,7 +142,6 @@ class TrocarSenhaView(View):
         u = request.user
         return {
             "form": form,
-            "user_profile": _shim(u),
             "user_perms": {
                 "pode_editar": perms._pode_editar(u),
                 "is_admin":    perms._is_admin(u),
@@ -491,7 +490,6 @@ class MochilaDeleteView(SupervisorRequiredMixin, View):
             "titulo": "Excluir Mochila",
             "mensagem": f'Deseja desativar a mochila "{mochila.nome}"?',
             "voltar_url": reverse_lazy("mochila_list"),
-            "user_profile": _shim(u),
             "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
         })
 
@@ -620,7 +618,6 @@ class LojaDeleteView(SupervisorRequiredMixin, View):
             "titulo": "Excluir Loja",
             "mensagem": f'Deseja desativar a loja "{loja.nome}"?',
             "voltar_url": reverse_lazy("loja_list"),
-            "user_profile": _shim(u),
             "user_perms": {"pode_editar": perms._pode_editar(u), "is_admin": perms._is_admin(u)},
         })
 
@@ -671,7 +668,6 @@ class UsuarioCreateView(UsuarioAreaMixin, View):
         return {
             "form": form,
             "editing": editing,
-            "user_profile": _shim(u),
             "user_perms": {
                 "pode_editar":           perms._pode_editar(u),
                 "is_admin":              perms._is_admin(u),
@@ -739,7 +735,6 @@ class UsuarioEditView(UsuarioAreaMixin, View):
             "form": form,
             "editing": editing,
             "target_user": target,
-            "user_profile": _shim(u),
             "user_perms": {
                 "pode_editar":           perms._pode_editar(u),
                 "is_admin":              perms._is_admin(u),

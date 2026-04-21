@@ -16,7 +16,7 @@
         <p>Visão geral das viagens e equipamentos</p>
     </div>
     <div class="page-header-right">
-        {% if user_profile.pode_editar %}
+        {% if user_perms.pode_editar %}
         <a href="{% url 'viagem_create' %}" class="btn btn-primary">
             <i class="fa-solid fa-plus"></i> Nova Viagem
         </a>
@@ -118,7 +118,7 @@
         <div class="icon"><i class="fa-solid fa-route"></i></div>
         <h3>Nenhuma viagem em andamento</h3>
         <p>Todas as mochilas estão disponíveis no momento.</p>
-        {% if user_profile.pode_editar %}
+        {% if user_perms.pode_editar %}
         <a href="{% url 'viagem_create' %}" class="btn btn-primary" style="margin-top:8px;">
             <i class="fa-solid fa-plus"></i> Iniciar Viagem
         </a>
@@ -212,7 +212,7 @@
         <div class="empty-state">
             <div class="icon"><i class="fa-solid fa-briefcase"></i></div>
             <h3>Nenhuma mochila</h3>
-            {% if user_profile.pode_editar %}
+            {% if user_perms.pode_editar %}
             <a href="{% url 'mochila_create' %}" class="btn btn-primary" style="margin-top:8px;">
                 <i class="fa-solid fa-plus"></i> Nova Mochila
             </a>

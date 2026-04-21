@@ -97,11 +97,11 @@
 
                         {# Editar — Admin pode editar qualquer um; Supervisor só edita não-admins #}
                         {% if u != request.user %}
-                            {% if user_profile.is_admin %}
+                            {% if user_perms.is_admin %}
                                 <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
                                     <i class="fa-solid fa-pen"></i>
                                 </a>
-                            {% elif user_profile.is_supervisor and not u.is_superuser %}
+                            {% elif user_perms.is_supervisor and not u.is_superuser %}
                                 <a href="{% url 'usuario_edit' u.pk %}" class="btn btn-ghost btn-sm" title="Editar">
                                     <i class="fa-solid fa-pen"></i>
                                 </a>
@@ -114,7 +114,7 @@
                         {% endif %}
 
                         {# Reset de senha — SOMENTE Admin, nunca para si mesmo #}
-                        {% if user_profile.is_admin and u != request.user %}
+                        {% if user_perms.is_admin and u != request.user %}
                         <form method="post" action="{% url 'usuario_reset_senha' u.pk %}"
                               onsubmit="return confirm('Redefinir senha de {{ u.username }} para o padrão?')">
                             {% csrf_token %}
@@ -126,7 +126,7 @@
                         {% endif %}
 
                         {# Excluir — SOMENTE Admin, nunca para si mesmo, nunca para superuser #}
-                        {% if user_profile.is_admin and u != request.user and not u.is_superuser %}
+                        {% if user_perms.is_admin and u != request.user and not u.is_superuser %}
                         <form method="post" action="{% url 'usuario_delete' u.pk %}"
                               onsubmit="return confirm('Excluir o usuário {{ u.username }}?')">
                             {% csrf_token %}

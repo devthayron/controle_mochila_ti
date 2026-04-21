@@ -15,7 +15,7 @@
         <p>Equipamentos disponíveis para compor as mochilas</p>
     </div>
     <div class="page-header-right">
-        {% if user_profile.pode_editar %}
+        {% if user_perms.pode_editar %}
         <a href="{% url 'item_create' %}" class="btn btn-primary">
             <i class="fa-solid fa-plus"></i> Novo Item
         </a>
@@ -63,7 +63,7 @@
                 </td>
                 <td>
                     <div class="actions">
-                        {% if user_profile.pode_editar %}
+                        {% if user_perms.pode_editar %}
                             <a href="{% url 'item_edit' item.pk %}" class="btn btn-ghost btn-sm" title="Editar">
                                 <i class="fa-solid fa-pen"></i>
                             </a>
@@ -91,7 +91,7 @@
         <div class="icon"><i class="fa-solid fa-screwdriver-wrench"></i></div>
         <h3>Nenhum item cadastrado</h3>
         <p>Cadastre os equipamentos que farão parte das mochilas.</p>
-        {% if user_profile.pode_editar %}
+        {% if user_perms.pode_editar %}
         <a href="{% url 'item_create' %}" class="btn btn-primary" style="margin-top:8px;">
             <i class="fa-solid fa-plus"></i> Cadastrar Item
         </a>

@@ -17,47 +17,21 @@ from . import permissions as perms
 
 class PermContextMixin(LoginRequiredMixin):
     """
-    Injeta `user_perms` e `user_profile` (shim) no contexto de templates.
+    Injeta `user_perms` no contexto de templates.
     """
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         u = self.request.user
+
         context["user_perms"] = {
             "pode_editar":           perms._pode_editar(u),
             "is_admin":              perms._is_admin(u),
             "is_supervisor":         perms._is_supervisor(u),
             "pode_acessar_usuarios": perms.pode_acessar_area_usuarios(u),
         }
-        context["user_profile"] = _LegacyProfileShim(u)
+
         return context
-
-
-class _LegacyProfileShim:
-    """Compatibilidade com templates que ainda usam user_profile.*"""
-
-    def __init__(self, user):
-        self._user = user
-
-    @property
-    def pode_editar(self):
-        return perms._pode_editar(self._user)
-
-    @property
-    def is_admin(self):
-        return perms._is_admin(self._user)
-
-    @property
-    def is_supervisor(self):
-        return perms._is_supervisor(self._user)
-
-    @property
-    def is_usuario(self):
-        return not perms._pode_editar(self._user)
-
-    @property
-    def pode_acessar_usuarios(self):
-        return perms.pode_acessar_area_usuarios(self._user)
 
 
 # ──────────────────────────────────────────────

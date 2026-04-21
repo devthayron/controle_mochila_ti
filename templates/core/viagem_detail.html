@@ -35,7 +35,7 @@
         <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
             <i class="fa-solid fa-arrow-left"></i> Voltar
         </a>
-        {% if viagem.status == 'andamento' and user_profile.pode_editar %}
+        {% if viagem.status == 'andamento' and user_perms.pode_editar %}
         <form method="post" action="{% url 'viagem_finalizar' viagem.pk %}" style="display:inline;"
               onsubmit="return confirm('Confirmar finalização da Viagem #{{ viagem.id }}?')">
             {% csrf_token %}
