@@ -31,10 +31,12 @@
 <h1>Checklist da Viagem {{ viagem.loja.nome }} - {{ viagem.id }}</h1>
 
 <div class="info">
-    <p><strong>Responsável:</strong> {{ viagem.responsavel.username }}</p>
+    <p><strong>Suporte:</strong> {{ viagem.responsavel.username }}</p>
     <p><strong>Loja:</strong> {{ viagem.loja.nome }}</p>
     <p><strong>Mochila:</strong> {{ viagem.mochila.nome }}</p>
-    <p><strong>Data saída:</strong> {{ viagem.data_saida }}</p>
+    <p><strong>Data saída:</strong> {{ viagem.data_saida|date:"d/m/Y H:i" }}</p>
+    <p><strong>Data retorno:</strong> {{ viagem.data_retorno|date:"d/m/Y H:i" }}</p>
+
 </div>
 
 <table>
@@ -58,6 +60,21 @@
         </tr>
         {% endfor %}
     </tbody>
+</table>
+
+<br><br>
+
+<table style="width: 100%; border: none; margin-top: 40px;">
+    <tr>
+        <td style="width: 50%; text-align: center; border: none;">
+            ___________________________<br>
+            Suporte
+        </td>
+        <td style="width: 50%; text-align: center; border: none;">
+            ___________________________<br>
+            Facilitador
+        </td>
+    </tr>
 </table>
 
 </body>

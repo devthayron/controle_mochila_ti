@@ -204,7 +204,6 @@ class ViagemChecklistPDFView(LoginRequiredMixin, View):
     def get(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
 
-        # Object-level: quem pode ver ESTA viagem
         if not perms.pode_ver_viagem(request.user, viagem):
             raise PermissionDenied("Sem acesso a esta viagem.")
 
@@ -262,7 +261,6 @@ class ViagemDetailView(LoginRequiredMixin, DetailView):
 
     def get_object(self, queryset=None):
         viagem = get_object_or_404(Viagem, pk=self.kwargs["pk"])
-        # Object-level: quem pode ver ESTA viagem
         if not perms.pode_ver_viagem(self.request.user, viagem):
             raise PermissionDenied("Você não tem acesso a esta viagem.")
         return viagem

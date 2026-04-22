@@ -155,7 +155,8 @@
                                 <input type="checkbox"
                                     name="saida_ok_{{ ci.id }}"
                                     {% if ci.saida_ok %}checked{% endif %}
-                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}
+                                    {% if not user_perms.pode_editar %}disabled{% endif %}>
                                 <div class="toggle-slider"></div>
                             </div>
                         </label>
@@ -168,6 +169,7 @@
                                     {% if ci.retorno_ok %}checked{% endif %}
                                     {% if not ci.saida_ok %}disabled{% endif %}
                                     {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+
                                 <div class="toggle-slider"></div>
                             </div>
                         </label>
