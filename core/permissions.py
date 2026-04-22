@@ -7,12 +7,13 @@ Hierarquia de acesso:
                NÃO pode: apagar usuários, resetar senha
   Usuário     → somente leitura; vê apenas as próprias viagens
 
-Regra de ouro:
+Regras de ouro:
   - NUNCA colocar regras de acesso nas views, services ou templates via perms.*
   - Toda verificação passa por esta camada
-  - Views e mixins consomem APENAS as funções públicas deste módulo
-  - O contexto de permissões para templates é construído por build_user_perms_context()
-  - Funções com prefixo _ são internas; não as importe fora deste módulo
+  - Funções com prefixo _ são internas — NÃO importar fora deste módulo
+  - Services são lógica de negócio pura — NÃO importam este módulo
+  - permission_context() é registrado em settings.py como context processor global
+    e injeta user_perms em todos os templates automaticamente
 """
 
 from __future__ import annotations
@@ -24,66 +25,62 @@ from django.contrib.auth.models import User
 if TYPE_CHECKING:
     from .models import Viagem
 
+# Contexto vazio reutilizado em qualquer situação sem usuário autenticado
+_EMPTY_PERMS = {
+    "user_perms": {
+        "pode_editar":           False,
+        "is_admin":              False,
+        "is_supervisor":         False,
+        "pode_acessar_usuarios": False,
+    }
+}
+
 
 # ══════════════════════════════════════════════
 # PRIMITIVOS DE ROLE — internos, não importar fora daqui
 # ══════════════════════════════════════════════
 
 def _is_admin(user: User) -> bool:
-    """Admin total: superuser ou com permissão explícita core.admin_access."""
     return user.is_active and (
         user.is_superuser or user.has_perm("core.admin_access")
     )
 
 
 def _is_supervisor(user: User) -> bool:
-    """Membro do grupo Supervisor."""
     return user.is_active and user.groups.filter(name="Supervisor").exists()
 
 
 def _is_usuario(user: User) -> bool:
-    """Usuário comum (somente leitura)."""
     return user.is_active and not _is_admin(user) and not _is_supervisor(user)
 
 
 def _pode_editar(user: User) -> bool:
-    """Admin ou Supervisor — pode realizar operações de escrita."""
     return _is_admin(user) or _is_supervisor(user)
 
 
 # ══════════════════════════════════════════════
-# API PÚBLICA — use estas funções fora deste módulo
+# API PÚBLICA
 # ══════════════════════════════════════════════
 
-# ── Roles ──────────────────────────────────────────────
-
 def is_admin(user: User) -> bool:
-    """Alias público de _is_admin."""
     return _is_admin(user)
 
 
 def is_supervisor(user: User) -> bool:
-    """Alias público de _is_supervisor."""
     return _is_supervisor(user)
 
 
 def pode_editar(user: User) -> bool:
-    """Admin ou Supervisor — alias público de _pode_editar."""
     return _pode_editar(user)
 
 
 # ── Viagens ────────────────────────────────────────────
 
 def pode_listar_viagens(user: User) -> bool:
-    """Qualquer usuário autenticado e ativo pode listar viagens (filtradas pelo queryset)."""
     return user.is_authenticated and user.is_active
 
 
 def pode_ver_viagem(user: User, viagem: "Viagem") -> bool:
-    """
-    Admin/Supervisor veem qualquer viagem.
-    Usuário comum vê apenas as suas próprias.
-    """
     if not (user.is_authenticated and user.is_active):
         return False
     if _pode_editar(user):
@@ -100,12 +97,6 @@ def pode_finalizar_viagem(user: User) -> bool:
 
 
 def pode_editar_checklist(user: User, viagem: "Viagem") -> bool:
-    """
-    Só edita checklist quem:
-      1. tem acesso à viagem
-      2. a viagem ainda está em andamento
-      3. tem permissão de edição ou é o responsável
-    """
     if not pode_ver_viagem(user, viagem):
         return False
     if viagem.status != "andamento":
@@ -123,7 +114,7 @@ def pode_ver_checklist_retorno_ok(user: User) -> bool:
     return _pode_editar(user)
 
 
-# ── Inventário — Mochilas, Lojas, Itens ────────────────
+# ── Inventário ─────────────────────────────────────────
 
 def pode_gerenciar_mochila(user: User) -> bool:
     return _pode_editar(user)
@@ -137,18 +128,13 @@ def pode_gerenciar_item(user: User) -> bool:
     return _pode_editar(user)
 
 
-# ── Usuários — controle granular por operação ──────────
+# ── Usuários ───────────────────────────────────────────
 
 def pode_acessar_area_usuarios(user: User) -> bool:
-    """Acesso à listagem de usuários: Admin e Supervisor."""
     return _is_admin(user) or _is_supervisor(user)
 
 
 def pode_criar_usuario(user: User, nivel_alvo: str) -> bool:
-    """
-    Admin pode criar qualquer nível.
-    Supervisor pode criar apenas usuário e supervisor.
-    """
     if _is_admin(user):
         return True
     if _is_supervisor(user):
@@ -157,10 +143,6 @@ def pode_criar_usuario(user: User, nivel_alvo: str) -> bool:
 
 
 def pode_editar_usuario(user: User, target: User, nivel_alvo: str) -> bool:
-    """
-    Admin pode editar qualquer usuário para qualquer nível.
-    Supervisor pode editar usuários não-admin, mas não pode promover para admin.
-    """
     if _is_admin(user):
         return True
     if _is_supervisor(user):
@@ -173,7 +155,6 @@ def pode_editar_usuario(user: User, target: User, nivel_alvo: str) -> bool:
 
 
 def pode_excluir_usuario(user: User, target: User) -> bool:
-    """Somente Admin pode excluir. Nunca pode excluir superuser."""
     if not _is_admin(user):
         return False
     if target.is_superuser:
@@ -182,11 +163,8 @@ def pode_excluir_usuario(user: User, target: User) -> bool:
 
 
 def pode_resetar_senha(user: User) -> bool:
-    """Somente Admin pode resetar senha de outros usuários."""
     return _is_admin(user)
 
-
-# ── Admin Django ───────────────────────────────────────
 
 def pode_acessar_admin(user: User) -> bool:
     return _is_admin(user)
@@ -197,35 +175,46 @@ def pode_acessar_admin(user: User) -> bool:
 # ══════════════════════════════════════════════
 
 def filtrar_viagens(user: User, qs):
-    """
-    Admin/Supervisor → todas as viagens.
-    Usuário comum   → apenas as próprias.
-    """
     if _pode_editar(user):
         return qs
     return qs.filter(responsavel=user)
 
 
 # ══════════════════════════════════════════════
-# CONTEXT BUILDER — única fonte de verdade para templates
+# CONTEXT PROCESSOR GLOBAL
 # ══════════════════════════════════════════════
+# Registrado em settings.py → TEMPLATES → context_processors:
+#   'core.permissions.permission_context'
+#
+# Injeta automaticamente `user_perms` em TODOS os templates.
+# Nenhuma view deve replicar ou complementar este contexto.
 
-def permission_context(request):
-    if not request.user.is_authenticated:
-        return {"user_perms": {
-            "pode_editar": False,
-            "is_admin": False,
-            "is_supervisor": False,
-            "pode_acessar_usuarios": False,
-        }}
+def permission_context(request) -> dict:
+    """
+    Context processor global.
 
-    user = request.user
+    Defensivo por design:
+    - Verifica hasattr antes de acessar request.user
+    - Verifica is_authenticated antes de qualquer acesso ao banco
+    - Nunca lança exceção — retorna contexto vazio em qualquer caso de erro
+    """
+    try:
+        user = getattr(request, "user", None)
 
-    return {
-        "user_perms": {
-            "pode_editar": _pode_editar(user),
-            "is_admin": _is_admin(user),
-            "is_supervisor": _is_supervisor(user),
-            "pode_acessar_usuarios": pode_acessar_area_usuarios(user),
+        # user ausente, não resolvido ou não é um objeto User/AnonymousUser válido
+        if user is None or not hasattr(user, "is_authenticated"):
+            return _EMPTY_PERMS
+
+        if not user.is_authenticated:
+            return _EMPTY_PERMS
+
+        return {
+            "user_perms": {
+                "pode_editar":           _pode_editar(user),
+                "is_admin":              _is_admin(user),
+                "is_supervisor":         _is_supervisor(user),
+                "pode_acessar_usuarios": pode_acessar_area_usuarios(user),
+            }
         }
-    }
+    except Exception:
+        return _EMPTY_PERMS

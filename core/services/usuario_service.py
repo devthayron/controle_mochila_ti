@@ -1,5 +1,13 @@
 """
 services/usuario_service.py — Criação, edição, exclusão e reset de senha.
+
+AUTORIZAÇÃO: zero. Toda verificação de permissão acontece na view/mixin
+antes de chamar qualquer função deste módulo.
+
+NOTA SOBRE ASSINATURAS:
+  O parâmetro `actor` foi preservado apenas onde é necessário para o log de
+  auditoria (quem executou a ação). Onde antes existia apenas para checar
+  permissão, foi removido.
 """
 
 from __future__ import annotations
@@ -7,10 +15,8 @@ from __future__ import annotations
 import logging
 
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
-from core import permissions as perms
 from ..exceptions import AutoExclusaoError, SenhaFracaError, SenhaIncorretaError
 from ..models import PasswordPolicy
 
@@ -19,9 +25,9 @@ logger = logging.getLogger("core.services.usuario")
 DEFAULT_PASSWORD = "Dti@paraiba"
 
 _NIVEL_TO_GROUP = {
-    "admin": "Admin",
+    "admin":      "Admin",
     "supervisor": "Supervisor",
-    "usuario": "Usuário",
+    "usuario":    "Usuário",
 }
 
 _GROUP_TO_NIVEL = {v: k for k, v in _NIVEL_TO_GROUP.items()}
@@ -76,10 +82,11 @@ def criar_usuario(
     last_name: str = "",
     email: str = "",
 ) -> User:
-
-    if not perms.pode_criar_usuario(actor, nivel):
-        raise PermissionDenied("Sem permissão para criar usuário neste nível.")
-
+    """
+    Cria usuário com senha padrão e política de troca obrigatória.
+    Pré-condição: o chamador já verificou pode_criar_usuario(actor, nivel).
+    `actor` é mantido para rastreabilidade no log.
+    """
     user = User.objects.create(
         username=username,
         first_name=first_name,
@@ -113,16 +120,17 @@ def editar_usuario(
     last_name: str = "",
     email: str = "",
 ) -> User:
-
-    if not perms.pode_editar_usuario(actor, target, nivel):
-        raise PermissionDenied("Sem permissão para editar este usuário.")
-
-    target.username = username
+    """
+    Atualiza dados e nível do usuário.
+    Pré-condição: o chamador já verificou pode_editar_usuario(actor, target, nivel).
+    `actor` é mantido para rastreabilidade no log.
+    """
+    target.username   = username
     target.first_name = first_name
-    target.last_name = last_name
-    target.email = email
-    target.is_staff = (nivel == "admin")
-    target.is_superuser = (nivel == "admin")
+    target.last_name  = last_name
+    target.email      = email
+    target.is_staff      = (nivel == "admin")
+    target.is_superuser  = (nivel == "admin")
     target.save()
 
     _assign_group(target, nivel)
@@ -137,10 +145,11 @@ def editar_usuario(
 
 @transaction.atomic
 def resetar_senha(actor: User, target: User) -> None:
-
-    if not perms.pode_resetar_senha(actor):
-        raise PermissionDenied("Sem permissão para resetar senha.")
-
+    """
+    Redefine a senha do usuário para o padrão e força troca no próximo login.
+    Pré-condição: o chamador já verificou pode_resetar_senha(actor).
+    `actor` é mantido para rastreabilidade no log.
+    """
     target.set_password(DEFAULT_PASSWORD)
     target.save()
 
@@ -152,12 +161,15 @@ def resetar_senha(actor: User, target: User) -> None:
 
 
 # ──────────────────────────────────────────────
-# TROCA DE SENHA
+# TROCA DE SENHA (auto-serviço)
 # ──────────────────────────────────────────────
 
 @transaction.atomic
 def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
-
+    """
+    Permite ao próprio usuário trocar sua senha.
+    Não requer verificação de permissão externa — é ação sobre si mesmo.
+    """
     if not user.check_password(senha_atual):
         raise SenhaIncorretaError("Senha atual incorreta.")
 
@@ -183,10 +195,11 @@ def trocar_senha(user: User, senha_atual: str, nova_senha: str) -> None:
 
 @transaction.atomic
 def excluir_usuario(actor: User, target: User) -> None:
-
-    if not perms.pode_excluir_usuario(actor, target):
-        raise PermissionDenied("Sem permissão para excluir usuário.")
-
+    """
+    Desativa o usuário (soft delete via is_active=False).
+    Pré-condição: o chamador já verificou pode_excluir_usuario(actor, target).
+    `actor` é mantido para rastreabilidade no log.
+    """
     if target == actor:
         raise AutoExclusaoError("Você não pode excluir sua própria conta.")
 

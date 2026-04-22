@@ -1,5 +1,8 @@
 """
 services/viagem_service.py — lógica de negócio pura de viagens.
+
+AUTORIZAÇÃO: zero. Toda verificação de permissão acontece na view/mixin
+antes de chamar qualquer função deste módulo.
 """
 
 from __future__ import annotations
@@ -8,10 +11,8 @@ import logging
 from django.utils import timezone
 
 from django.contrib.auth.models import User
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
-from core import permissions as perms
 from ..exceptions import (
     MochilaEmUsoError,
     MochilaInativaError,
@@ -29,10 +30,10 @@ logger = logging.getLogger("core.services.viagem")
 
 @transaction.atomic
 def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viagem:
-
-    if not perms.pode_criar_viagem(user):
-        raise PermissionDenied("Sem permissão para criar viagens.")
-
+    """
+    Cria uma viagem com checklist automático.
+    Pré-condição: o chamador já verificou permissão de criação.
+    """
     mochila = (
         Mochila.all_objects
         .select_for_update()
@@ -42,17 +43,12 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
     if not mochila.ativo:
         raise MochilaInativaError("Mochila inativa.")
 
-    itens = list(
-        mochila.mochilaitem_set.select_related("item")
-    )
+    itens = list(mochila.mochilaitem_set.select_related("item"))
 
     if not itens:
         raise MochilaVaziaError("Mochila sem itens.")
 
-    if Viagem.objects.filter(
-        mochila=mochila,
-        status="andamento",
-    ).exists():
+    if Viagem.objects.filter(mochila=mochila, status="andamento").exists():
         raise MochilaEmUsoError("Mochila já está em uso.")
 
     viagem = Viagem.objects.create(
@@ -81,10 +77,10 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
 
 @transaction.atomic
 def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
-
-    if not perms.pode_finalizar_viagem(user):
-        raise PermissionDenied("Sem permissão para finalizar viagem.")
-
+    """
+    Finaliza uma viagem em andamento.
+    Pré-condição: o chamador já verificou permissão de finalização.
+    """
     viagem = (
         Viagem.objects
         .select_for_update()
@@ -96,7 +92,6 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
 
     viagem.status = "finalizada"
     viagem.data_retorno = viagem.data_retorno or timezone.now()
-
     viagem.save(update_fields=["status", "data_retorno"])
 
     logger.info("Viagem #%s finalizada por %s", viagem.pk, user.username)
@@ -108,11 +103,19 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def salvar_checklist(user: User, viagem: Viagem, payload: dict):
+def salvar_checklist(user: User, viagem: Viagem, payload: dict, pode_editar_saida: bool = False):
+    """
+    Atualiza itens do checklist de uma viagem.
 
-    if not perms.pode_editar_checklist(user, viagem):
-        raise PermissionDenied("Sem permissão para checklist.")
+    Pré-condição: o chamador já verificou permissão de edição do checklist.
 
+    Args:
+        user:              usuário que executa a ação (para log).
+        viagem:            viagem cujo checklist será atualizado.
+        payload:           {checklist_item_pk: {saida_ok, retorno_ok, observacao_retorno}}.
+        pode_editar_saida: True se o usuário tem permissão para alterar saida_ok
+                           (calculado pela view via permissions.pode_editar).
+    """
     viagem = (
         Viagem.objects
         .select_for_update()
@@ -120,7 +123,6 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict):
     )
 
     checklist = viagem.checklist.select_related("item")
-
     to_update = []
 
     for ci in checklist:
@@ -128,12 +130,11 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict):
         if not data:
             continue
 
-        if perms._pode_editar(user):
+        if pode_editar_saida:
             ci.saida_ok = bool(data.get("saida_ok"))
-        ci.retorno_ok = bool(data.get("retorno_ok"))
 
+        ci.retorno_ok         = bool(data.get("retorno_ok"))
         ci.observacao_retorno = (data.get("observacao_retorno") or "")[:255]
-
         to_update.append(ci)
 
     if to_update:
@@ -159,8 +160,8 @@ def salvar_checklist(user: User, viagem: Viagem, payload: dict):
 def payload_from_post(post_data, checklist_ids: list[int]) -> dict:
     return {
         cid: {
-            "saida_ok": post_data.get(f"saida_ok_{cid}") == "on",
-            "retorno_ok": post_data.get(f"retorno_ok_{cid}") == "on",
+            "saida_ok":           post_data.get(f"saida_ok_{cid}") == "on",
+            "retorno_ok":         post_data.get(f"retorno_ok_{cid}") == "on",
             "observacao_retorno": post_data.get(f"obs_{cid}", ""),
         }
         for cid in checklist_ids

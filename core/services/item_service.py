@@ -1,5 +1,8 @@
 """
 services/item_service.py — Regras de negócio de Item.
+
+AUTORIZAÇÃO: zero. Toda verificação de permissão acontece na view/mixin
+antes de chamar qualquer função deste módulo.
 """
 
 from __future__ import annotations
@@ -7,10 +10,8 @@ from __future__ import annotations
 import logging
 
 from django.contrib.auth.models import User
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
-from core import permissions as perms
 from ..exceptions import ItemEmUsoError
 from ..models import Item
 
@@ -23,23 +24,21 @@ logger = logging.getLogger("core.services.item")
 
 @transaction.atomic
 def desativar_item(user: User, item: Item) -> Item:
-
-    if not perms.pode_gerenciar_item(user):
-        raise PermissionDenied("Sem permissão para desativar itens.")
-
+    """
+    Soft delete de item.
+    Pré-condição: o chamador já verificou permissão de gerenciamento.
+    """
     item = (
         Item.all_objects
         .select_for_update()
         .get(pk=item.pk)
     )
 
-    # 🔒 regra de domínio já delegada ao model (correto)
     if not item.pode_ser_desativado():
         raise ItemEmUsoError(
             f'O item "{item.nome}" está em uso em viagens ativas e não pode ser desativado.'
         )
 
-    # 🔒 idempotência correta
     if not item.ativo:
         logger.info("Item #%s já estava desativado.", item.pk)
         return item
@@ -48,9 +47,7 @@ def desativar_item(user: User, item: Item) -> Item:
 
     logger.info(
         "Item #%s (%s) desativado por %s",
-        item.pk,
-        item.nome,
-        user.username,
+        item.pk, item.nome, user.username,
     )
 
     return item
@@ -62,17 +59,16 @@ def desativar_item(user: User, item: Item) -> Item:
 
 @transaction.atomic
 def reativar_item(user: User, item: Item) -> Item:
-
-    if not perms.pode_gerenciar_item(user):
-        raise PermissionDenied("Sem permissão para reativar itens.")
-
+    """
+    Reativa item inativo.
+    Pré-condição: o chamador já verificou permissão de gerenciamento.
+    """
     item = (
         Item.all_objects
         .select_for_update()
         .get(pk=item.pk)
     )
 
-    # 🔒 idempotência opcional (boa prática)
     if item.ativo:
         logger.info("Item #%s já estava ativo.", item.pk)
         return item
@@ -81,9 +77,7 @@ def reativar_item(user: User, item: Item) -> Item:
 
     logger.info(
         "Item #%s (%s) reativado por %s",
-        item.pk,
-        item.nome,
-        user.username,
+        item.pk, item.nome, user.username,
     )
 
     return item
