@@ -618,6 +618,8 @@ class LojaDeleteView(SupervisorRequiredMixin, View):
 # USUÁRIOS
 # ══════════════════════════════════════════════
 
+from django.db.models import Q
+
 class UsuarioListView(UsuarioAreaMixin, ListView):
     model = User
     template_name = "core/usuario_list.html"
@@ -632,25 +634,28 @@ class UsuarioListView(UsuarioAreaMixin, ListView):
             .prefetch_related("groups", "password_policy")
         )
 
+        # 🔒 Supervisor não vê admin
+        if perms.is_supervisor(user):
+            qs = qs.exclude(
+                Q(is_superuser=True) |
+                Q(groups__name="Admin")
+            ).distinct()
+
         usuarios = list(qs)
 
         def nivel(u):
             if u.pk == user.pk:
-                return 0  
+                return 0
             if u.is_superuser:
                 return 1
             if u.groups.filter(name="Supervisor").exists():
                 return 2
             return 3
 
-        usuarios.sort(
-            key=lambda u: (
-                nivel(u),             
-                u.username.lower()    
-            )
+        return sorted(
+            usuarios,
+            key=lambda u: (nivel(u), u.username.lower())
         )
-
-        return usuarios
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
