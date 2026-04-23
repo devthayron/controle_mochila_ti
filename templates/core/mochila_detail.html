@@ -27,7 +27,7 @@
         <a href="{% url 'mochila_list' %}" class="btn btn-ghost">
             <i class="fa-solid fa-arrow-left"></i> Voltar
         </a>
-        {% if user_perms.pode_editar %}
+        {% if user_perms.gerenciar_mochila %}
         <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-secondary">
             <i class="fa-solid fa-pen"></i> Editar
         </a>
@@ -47,7 +47,7 @@
                 <i class="fa-solid fa-screwdriver-wrench" style="color:var(--text-muted);margin-right:8px;"></i>
                 Equipamentos
             </h2>
-            {% if user_perms.pode_editar %}
+            {% if user_perms.gerenciar_mochila %}
             <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-ghost btn-sm">
                 <i class="fa-solid fa-pen"></i> Gerenciar
             </a>
@@ -85,7 +85,7 @@
         <div class="empty-state" style="padding:40px 20px;">
             <div class="icon"><i class="fa-solid fa-box-open"></i></div>
             <h3>Mochila vazia</h3>
-            {% if user_perms.pode_editar %}
+            {% if user_perms.gerenciar_mochila %}
             <a href="{% url 'mochila_edit' mochila.pk %}" class="btn btn-primary" style="margin-top:8px;">
                 <i class="fa-solid fa-plus"></i> Adicionar Itens
             </a>

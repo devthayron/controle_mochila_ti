@@ -43,7 +43,7 @@
         <a href="{% url 'viagem_list' %}" class="nav-item {% block nav_viagens %}{% endblock %}">
             <i class="fa-solid fa-route"></i> Viagens
         </a>
-        {% if user_perms.pode_editar %}
+        {% if user_perms.criar_viagem %}
         <a href="{% url 'viagem_create' %}" class="nav-item {% block nav_nova_viagem %}{% endblock %}">
             <i class="fa-solid fa-circle-plus"></i> Nova Viagem
         </a>
@@ -63,7 +63,7 @@
         </a>
 
         {# Usuários: visível para Admin e Supervisor #}
-        {% if user_perms.pode_acessar_usuarios %}
+        {% if user_perms.acessar_area_usuarios %}
         <span class="nav-section-label">Usuários</span>
         <a href="{% url 'usuario_list' %}" class="nav-item {% block nav_usuarios %}{% endblock %}">
             <i class="fa-solid fa-users-gear"></i> Usuários
@@ -71,7 +71,7 @@
         {% endif %}
 
         {# Administração: exclusivo do Admin #}
-        {% if user_perms.is_admin %}
+        {% if user_perms.acessar_admin %}
         <span class="nav-section-label">Administração</span>
         <a href="/admin/" class="nav-item" target="_blank" rel="noopener">
             <i class="fa-solid fa-sliders"></i> Painel Admin
@@ -85,7 +85,7 @@
         <div class="user-info">
             <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
             <span>
-                {% if user_perms.is_admin %}<i class="fa-solid fa-shield-halved" style="color:var(--ap-red-light);font-size:.65rem;"></i> Administrador
+                {% if user_perms.acessar_admin %}<i class="fa-solid fa-shield-halved" style="color:var(--ap-red-light);font-size:.65rem;"></i> Administrador
                 {% elif user_perms.is_supervisor %}<i class="fa-solid fa-user-tie" style="color:#C084FC;font-size:.65rem;"></i> Supervisor
                 {% else %}<i class="fa-solid fa-user" style="color:#60A5FA;font-size:.65rem;"></i> Usuário{% endif %}
             </span>
@@ -109,7 +109,7 @@
         {% block breadcrumb %}{% endblock %}
     </nav>
     <div class="topbar-actions">
-        {% if user_perms.pode_editar %}
+        {% if user_perms.criar_viagem %}
         <a href="{% url 'viagem_create' %}" class="btn-icon" title="Nova Viagem">
             <i class="fa-solid fa-plus"></i>
         </a>

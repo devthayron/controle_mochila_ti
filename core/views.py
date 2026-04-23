@@ -622,7 +622,7 @@ class UsuarioListView(UsuarioAreaMixin, ListView):
     model               = User
     template_name       = "core/usuario_list.html"
     context_object_name = "usuarios"
-
+ 
     def get_queryset(self):
         return (
             User.objects
@@ -630,6 +630,15 @@ class UsuarioListView(UsuarioAreaMixin, ListView):
             .prefetch_related("groups", "password_policy")
             .order_by("username")
         )
+ 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # permissions decide tudo — view só delega
+        context["usuarios"] = perms.annotate_usuario_perms(
+            self.request.user,
+            context["usuarios"],
+        )
+        return context
 
 
 class UsuarioCreateView(UsuarioAreaMixin, View):

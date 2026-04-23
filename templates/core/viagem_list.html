@@ -15,7 +15,7 @@
         <p>Histórico e acompanhamento de todas as saídas</p>
     </div>
     <div class="page-header-right">
-        {% if user_perms.pode_editar %}
+        {% if user_perms.criar_viagem %}
         <a href="{% url 'viagem_create' %}" class="btn btn-primary">
             <i class="fa-solid fa-plus"></i> Nova Viagem
         </a>
@@ -118,7 +118,7 @@
                         <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm" title="Ver detalhes">
                             <i class="fa-solid fa-eye"></i>
                         </a>
-                        {% if v.status == 'andamento' and user_perms.pode_editar %}
+                        {% if v.status == 'andamento' and user_perms.finalizar_viagem %}
                         <form method="POST" action="{% url 'viagem_finalizar' v.pk %}" style="display:inline;"
                               onsubmit="return confirm('Finalizar Viagem #{{ v.id }}?')">
                             {% csrf_token %}
@@ -164,7 +164,7 @@
         <div class="icon"><i class="fa-solid fa-route"></i></div>
         <h3>Nenhuma viagem encontrada</h3>
         <p>Tente ajustar os filtros ou registre uma nova viagem.</p>
-        {% if user_perms.pode_editar %}
+        {% if user_perms.criar_viagem %}
         <a href="{% url 'viagem_create' %}" class="btn btn-primary" style="margin-top:8px;">
             <i class="fa-solid fa-plus"></i> Nova Viagem
         </a>

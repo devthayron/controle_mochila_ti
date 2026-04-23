@@ -35,7 +35,7 @@
         <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
             <i class="fa-solid fa-arrow-left"></i> Voltar
         </a>
-        {% if viagem.status == 'andamento' and user_perms.pode_editar %}
+        {% if viagem.status == 'andamento' and user_perms.finalizar_viagem %}
         <form method="post" action="{% url 'viagem_finalizar' viagem.pk %}" style="display:inline;"
               onsubmit="return confirm('Confirmar finalização da Viagem #{{ viagem.id }}?')">
             {% csrf_token %}
@@ -149,31 +149,34 @@
                     <td style="text-align:center;">
                         <span class="qty-badge">{{ ci.quantidade }}</span>
                     </td>
+
+                    {# Saída OK — só supervisor/admin pode alterar #}
                     <td style="text-align:center;">
                         <label class="toggle-wrap" style="justify-content:center;">
                             <div class="toggle">
                                 <input type="checkbox"
                                     name="saida_ok_{{ ci.id }}"
                                     {% if ci.saida_ok %}checked{% endif %}
-                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}
-                                    {% if not user_perms.pode_editar %}disabled{% endif %}>
+                                    {% if viagem.status == 'finalizada' or not user_perms.pode_editar %}disabled{% endif %}>
                                 <div class="toggle-slider"></div>
                             </div>
                         </label>
                     </td>
+
                     <td style="text-align:center;">
                         <label class="toggle-wrap" style="justify-content:center;">
                             <div class="toggle">
                                 <input type="checkbox"
                                     name="retorno_ok_{{ ci.id }}"
                                     {% if ci.retorno_ok %}checked{% endif %}
-                                    {% if not ci.saida_ok and not user_perms.pode_editar %}disabled{% endif %}
-                                    {% if viagem.status == 'finalizada' %}disabled{% endif %}>
-
+                                    {% if viagem.status == 'finalizada' or not pode_editar_checklist %}disabled
+                                    {% elif not user_perms.pode_editar and not ci.saida_ok %}disabled{% endif %}>
                                 <div class="toggle-slider"></div>
                             </div>
                         </label>
                     </td>
+
+                    {# Observação — mesma regra do retorno_ok #}
                     <td>
                         <input type="text"
                             name="obs_{{ ci.id }}"
@@ -181,7 +184,8 @@
                             placeholder="Observação…"
                             maxlength="255"
                             style="width:100%;max-width:280px;"
-                            {% if viagem.status == 'finalizada' %}disabled{% endif %}>
+                            {% if viagem.status == 'finalizada' or not pode_editar_checklist %}disabled
+                            {% elif not user_perms.pode_editar and not ci.saida_ok %}disabled{% endif %}>
                     </td>
                 </tr>
                 {% endfor %}
@@ -189,7 +193,8 @@
             </table>
         </div>
 
-        {% if viagem.status == 'andamento' %}
+        {# Botão salvar — só aparece se pode editar o checklist desta viagem #}
+        {% if viagem.status == 'andamento' and pode_editar_checklist %}
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:16px 20px;border-top:1px solid var(--border);">
             <span style="font-size:.8rem;color:var(--text-muted);">
                 <i class="fa-solid fa-circle-info"></i>
@@ -199,7 +204,7 @@
                 <i class="fa-solid fa-floppy-disk"></i> Salvar Checklist
             </button>
         </div>
-        {% else %}
+        {% elif viagem.status == 'finalizada' %}
         <div class="alert alert-info" style="margin:16px 20px;">
             <i class="fa-solid fa-lock"></i>
             Checklist bloqueado — esta viagem já foi finalizada.
@@ -229,35 +234,22 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;padding:20px;">
 
         <div style="text-align:center;">
-            <div style="font-size:2rem;font-weight:700;">
-                {{ total_itens }}
-            </div>
-            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
-                Total de itens
-            </div>
+            <div style="font-size:2rem;font-weight:700;">{{ total_itens }}</div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Total de itens</div>
         </div>
 
         <div style="text-align:center;">
-            <div style="font-size:2rem;font-weight:700;color:var(--accent-green);">
-                {{ retornados_ok }}
-            </div>
-            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
-                Retornados OK
-            </div>
+            <div style="font-size:2rem;font-weight:700;color:var(--accent-green);">{{ retornados_ok }}</div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Retornados OK</div>
         </div>
 
         <div style="text-align:center;">
-            <div style="font-size:2rem;font-weight:700;color:var(--ap-red-light);">
-                {{ pendentes }}
-            </div>
-            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">
-                Com pendência
-            </div>
+            <div style="font-size:2rem;font-weight:700;color:var(--ap-red-light);">{{ pendentes }}</div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Com pendência</div>
         </div>
 
     </div>
 </div>
-
 {% endif %}
 
 {% endblock %}
