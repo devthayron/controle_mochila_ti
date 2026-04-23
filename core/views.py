@@ -619,25 +619,47 @@ class LojaDeleteView(SupervisorRequiredMixin, View):
 # ══════════════════════════════════════════════
 
 class UsuarioListView(UsuarioAreaMixin, ListView):
-    model               = User
-    template_name       = "core/usuario_list.html"
+    model = User
+    template_name = "core/usuario_list.html"
     context_object_name = "usuarios"
- 
+
     def get_queryset(self):
-        return (
+        user = self.request.user
+
+        qs = (
             User.objects
             .filter(is_active=True)
             .prefetch_related("groups", "password_policy")
-            .order_by("username")
         )
- 
+
+        usuarios = list(qs)
+
+        def nivel(u):
+            if u.pk == user.pk:
+                return 0  
+            if u.is_superuser:
+                return 1
+            if u.groups.filter(name="Supervisor").exists():
+                return 2
+            return 3
+
+        usuarios.sort(
+            key=lambda u: (
+                nivel(u),             
+                u.username.lower()    
+            )
+        )
+
+        return usuarios
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # permissions decide tudo — view só delega
+
         context["usuarios"] = perms.annotate_usuario_perms(
             self.request.user,
             context["usuarios"],
         )
+
         return context
 
 
@@ -776,7 +798,6 @@ class UsuarioResetSenhaView(AdminRequiredMixin, View):
 
 @method_decorator(require_POST, name="dispatch")
 class UsuarioDeleteView(AdminRequiredMixin, View):
-    # AdminRequiredMixin garante is_admin
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
 
