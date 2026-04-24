@@ -56,11 +56,11 @@ from .exceptions import (
     ViagemJaFinalizada,
 )
 from .forms import (
-    ItemForm, LojaForm, MochilaForm,
+    ItemForm, LojaForm, MochilaForm,ViagemForm,
     TrocarSenhaForm, UsuarioCreateForm, UsuarioEditForm, ViagemForm,
 )
 from .mixins import AdminRequiredMixin, SupervisorRequiredMixin, UsuarioAreaMixin
-from .models import ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem
+from .models import ChecklistItem, Item, Loja, Mochila, MochilaItem, Viagem,ViagemLoja
 from .services.item_service import desativar_item
 from .services.loja_service import desativar_loja
 from .services.mochila_service import desativar_mochila, sincronizar_itens
@@ -238,7 +238,7 @@ class ViagemListView(LoginRequiredMixin, ListView):
             Viagem.objects
                   .select_related("responsavel", "mochila")
                   .prefetch_related("viagem_lojas__loja")
-                  .order_by("-id"),
+                  .order_by("status", "-id")
         )
         q      = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status")
@@ -298,7 +298,90 @@ class ViagemDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-# Substituir ViagemCreateView em views.py por esta versão:
+import json
+from django.shortcuts import get_object_or_404, render, redirect
+from django.core.exceptions import PermissionDenied
+from django.contrib import messages
+
+class ViagemUpdateView(SupervisorRequiredMixin, View):
+    template_name = "core/viagem_form.html"
+
+    def get(self, request, pk):
+        viagem = get_object_or_404(Viagem, pk=pk)
+
+        if viagem.status != "andamento":
+            raise PermissionDenied("Viagem finalizada não pode ser editada.")
+
+        form = ViagemForm(initial={
+            "responsavel": viagem.responsavel,
+            "mochila": viagem.mochila,
+        })
+
+        return render(request, self.template_name, self._build_context(form, viagem))
+
+    def post(self, request, pk):
+        from .services.viagem_service import lojas_from_post
+        from .models import Loja, ViagemLoja
+
+        viagem = get_object_or_404(Viagem, pk=pk)
+
+        if viagem.status != "andamento":
+            raise PermissionDenied("Viagem finalizada não pode ser editada.")
+
+        form = ViagemForm(request.POST)
+
+        if not form.is_valid():
+            return render(request, self.template_name, self._build_context(form, viagem))
+
+        lojas = lojas_from_post(request.POST, Loja)
+
+        if not lojas:
+            form.add_error(None, "Selecione ao menos uma loja.")
+            return render(request, self.template_name, self._build_context(form, viagem))
+
+        # atualiza dados base
+        viagem.responsavel = form.cleaned_data["responsavel"]
+        viagem.mochila = form.cleaned_data["mochila"]
+        viagem.save()
+
+        # recria relação viagem-lojas
+        viagem.viagem_lojas.all().delete()
+
+        ViagemLoja.objects.bulk_create([
+            ViagemLoja(viagem=viagem, loja=loja, ordem=i)
+            for i, loja in enumerate(lojas)
+        ])
+
+        messages.success(request, "Viagem atualizada com sucesso!")
+        return redirect("viagem_detail", pk=viagem.pk)
+
+    def _build_context(self, form, viagem):
+        from .models import Loja, Mochila
+
+        mochilas_dict = {
+            str(m.pk): [
+                {"item": mi.item.nome, "quantidade": mi.quantidade}
+                for mi in m.mochilaitem_set.select_related("item")
+            ]
+            for m in Mochila.objects.prefetch_related("mochilaitem_set__item")
+        }
+
+        lojas_selecionadas = list(
+            viagem.viagem_lojas
+            .order_by("ordem")
+            .values_list("loja_id", flat=True)
+        )
+
+        return {
+            "form": form,
+            "editing": True,
+            "viagem": viagem,
+            "lojas_selecionadas": json.dumps(lojas_selecionadas),
+
+            "mochilas_json": json.dumps(mochilas_dict),
+            "lojas_disponiveis": Loja.objects.order_by("nome"),
+        }
+
 
 class ViagemCreateView(SupervisorRequiredMixin, View):
     template_name = "core/viagem_form.html"

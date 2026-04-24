@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Nova Viagem — TI Armazém Paraíba{% endblock %}
+{% block title %}{% if editing %}Editar Viagem — TI Armazém Paraíba{% else %}Nova Viagem — TI Armazém Paraíba{% endif %}{% endblock %}
 {% block nav_nova_viagem %}active{% endblock %}
 
 {% block breadcrumb %}
     <span class="sep">/</span>
     <a href="{% url 'viagem_list' %}">Viagens</a>
     <span class="sep">/</span>
-    <span class="current">Nova Viagem</span>
+    <span class="current">{% if editing %}Editar Viagem{% else %}Nova Viagem{% endif %}</span>
 {% endblock %}
 
 {% block extra_head %}
@@ -74,7 +74,7 @@
 
 <div class="page-header">
     <div class="page-header-left">
-        <h1>Nova Viagem</h1>
+        <h1>{% if editing %}Editar Viagem{% else %}Nova Viagem{% endif %}</h1>
         <p>Registre a saída de uma mochila para atendimento</p>
     </div>
     <div class="page-header-right">
@@ -192,12 +192,20 @@
 {% block extra_js %}
 <script>
 // ── DADOS DO BACKEND ─────────────────────────────────────────────────
-const mochilaData   = {{ mochilas_json|safe|default:"{}" }};
+const lojasEdit = {{ lojas_selecionadas|default:"[]"|safe }};
+const mochilaData = {{ mochilas_json|safe|default:"{}" }};
+
 const lojasDisponiveis = [
     {% for loja in lojas_disponiveis %}
     { id: "{{ loja.pk }}", nome: "{{ loja.nome|escapejs }}" }{% if not forloop.last %},{% endif %}
     {% endfor %}
 ];
+
+// normaliza lojasEdit para array seguro
+const lojasEditIds = Array.isArray(lojasEdit)
+    ? lojasEdit
+    : JSON.parse(lojasEdit || "[]");
+
 
 // ── PREVIEW DA MOCHILA ───────────────────────────────────────────────
 const selMochila  = document.querySelector('[name="mochila"]');
@@ -207,14 +215,17 @@ const container   = document.getElementById('mochila-itens');
 
 function updatePreview() {
     const id = selMochila.value;
+
     if (!id || !mochilaData[id]) {
         preview.classList.add('hidden');
         emptyCard.classList.remove('hidden');
         return;
     }
+
     const items = mochilaData[id];
     preview.classList.remove('hidden');
     emptyCard.classList.add('hidden');
+
     if (!items.length) {
         container.innerHTML = `
             <div class="empty-state" style="padding:40px 20px;">
@@ -224,6 +235,7 @@ function updatePreview() {
             </div>`;
         return;
     }
+
     container.innerHTML = `
         <ul class="item-list">
             ${items.map(i => `
@@ -242,7 +254,8 @@ function updatePreview() {
 selMochila.addEventListener('change', updatePreview);
 updatePreview();
 
-// ── SELETOR DINÂMICO DE LOJAS ────────────────────────────────────────
+
+// ── LOJAS DINÂMICAS ────────────────────────────────────────────────
 const lojasContainer = document.getElementById('lojas-container');
 const btnAddLoja     = document.getElementById('btn-add-loja');
 const dupWarning     = document.getElementById('dup-warning');
@@ -265,17 +278,16 @@ function hasDuplicates(ids) {
 }
 
 function refreshBadges() {
-    lojasContainer.querySelectorAll('.loja-ordem-badge').forEach((badge, idx) => {
-        badge.textContent = idx + 1;
-    });
-    // Botão remover desabilitado se só há 1 linha
     const rows = lojasContainer.querySelectorAll('.loja-row');
-    rows.forEach(row => {
+
+    rows.forEach((row, idx) => {
+        row.querySelector('.loja-ordem-badge').textContent = idx + 1;
         row.querySelector('.btn-remove-loja').disabled = rows.length === 1;
     });
-    // Alerta de duplicata
-    const ids  = getSelectedLojaIds();
-    const dup  = hasDuplicates(ids);
+
+    const ids = getSelectedLojaIds();
+    const dup = hasDuplicates(ids);
+
     dupWarning.classList.toggle('visible', dup);
     btnSubmit.disabled = dup;
 }
@@ -283,6 +295,7 @@ function refreshBadges() {
 function addLojaRow(selectedId = '') {
     const row = document.createElement('div');
     row.className = 'loja-row';
+
     row.innerHTML = `
         <span class="loja-ordem-badge">1</span>
         <select name="lojas" class="form-input">
@@ -291,8 +304,11 @@ function addLojaRow(selectedId = '') {
         </select>
         <button type="button" class="btn-remove-loja" title="Remover loja" onclick="removeLojaRow(this)">
             <i class="fa-solid fa-xmark"></i>
-        </button>`;
+        </button>
+    `;
+
     lojasContainer.appendChild(row);
+
     row.querySelector('select').addEventListener('change', refreshBadges);
     refreshBadges();
 }
@@ -300,21 +316,25 @@ function addLojaRow(selectedId = '') {
 function removeLojaRow(btn) {
     const rows = lojasContainer.querySelectorAll('.loja-row');
     if (rows.length <= 1) return;
+
     btn.closest('.loja-row').remove();
     refreshBadges();
 }
 
 btnAddLoja.addEventListener('click', () => addLojaRow());
 
-// Validação no submit: bloqueia se algum select estiver vazio
+
+// ── SUBMIT VALIDATION ──────────────────────────────────────────────
 document.getElementById('viagem-form').addEventListener('submit', function(e) {
     const ids = getSelectedLojaIds();
+
     if (ids.length === 0 || ids.some(id => !id)) {
         e.preventDefault();
         dupWarning.textContent = 'Selecione ao menos uma loja antes de continuar.';
         dupWarning.classList.add('visible');
         return;
     }
+
     if (hasDuplicates(ids)) {
         e.preventDefault();
         dupWarning.textContent = 'Remova as lojas duplicadas antes de continuar.';
@@ -322,7 +342,14 @@ document.getElementById('viagem-form').addEventListener('submit', function(e) {
     }
 });
 
-// Inicializa com 1 linha vazia
-addLojaRow();
+
+// ── INIT (CREATE vs EDIT) ──────────────────────────────────────────
+lojasContainer.innerHTML = "";
+
+if (lojasEditIds.length > 0) {
+    lojasEditIds.forEach(id => addLojaRow(String(id)));
+} else {
+    addLojaRow();
+}
 </script>
 {% endblock %}

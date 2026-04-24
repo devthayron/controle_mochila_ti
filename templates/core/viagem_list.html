@@ -116,6 +116,11 @@
                 </td>
                 <td>
                     <div style="display:flex;gap:4px;">
+                        {% if v.status == 'andamento' %}
+                        <a href="{% url 'viagem_edit' v.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                            <i class="fa-solid fa-pen"></i>
+                        </a>
+                        {% endif %}
                         <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm" title="Ver detalhes">
                             <i class="fa-solid fa-eye"></i>
                         </a>
