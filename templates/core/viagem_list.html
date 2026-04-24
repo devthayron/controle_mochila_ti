@@ -116,7 +116,9 @@
                 </td>
                 <td>
                     <div style="display:flex;gap:4px;">
-                        {% if v.status == 'andamento' %}
+
+                        {# permissão temporaria ate criar uma para editar viagem #}
+                        {% if v.status == 'andamento' and user_perms.finalizar_viagem %}
                         <a href="{% url 'viagem_edit' v.pk %}" class="btn btn-ghost btn-sm" title="Editar">
                             <i class="fa-solid fa-pen"></i>
                         </a>
