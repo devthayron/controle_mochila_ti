@@ -9,7 +9,7 @@ from django.contrib.admin.models import LogEntry
 from .exceptions import DomainError, ItemEmUsoError, LojaEmUsoError, MochilaEmUsoError
 from .models import (
     ChecklistItem, Item, Loja, Mochila, MochilaItem,
-    PasswordPolicy, Viagem,
+    PasswordPolicy, Viagem, ViagemLoja,
 )
 from .services.item_service import desativar_item, reativar_item
 from .services.loja_service import desativar_loja, reativar_loja
@@ -69,7 +69,6 @@ class LojaAdmin(admin.ModelAdmin):
     list_display  = ["id", "nome", "ativo", "criado_em"]
     list_filter   = ["ativo"]
 
-    # Exibe todos (ativos e inativos) no admin
     def get_queryset(self, request):
         return Loja.all_objects.all()
 
@@ -89,7 +88,7 @@ class LojaAdmin(admin.ModelAdmin):
         for loja in queryset:
             try:
                 desativar_loja(user=request.user, loja=loja)
-            except LojaEmUsoError as e:
+            except LojaEmUsoError:
                 bloqueadas.append(loja.nome)
         if bloqueadas:
             self.message_user(
@@ -206,6 +205,24 @@ class MochilaAdmin(admin.ModelAdmin):
 # VIAGEM
 # ──────────────────────────────────────────────
 
+class ViagemLojaInline(admin.TabularInline):
+    """
+    Permite adicionar/remover lojas de uma viagem diretamente no admin.
+    Ordenado por `ordem` para refletir a sequência de visitas.
+    """
+    model          = ViagemLoja
+    extra          = 1
+    fields         = ["loja", "ordem"]
+    autocomplete_fields = ["loja"]
+    ordering       = ["ordem"]
+
+    def has_delete_permission(self, request, obj=None):
+        # Impede remover a última loja de uma viagem em andamento
+        if obj and isinstance(obj, Viagem) and obj.status == "andamento":
+            return obj.viagem_lojas.count() > 1
+        return True
+
+
 class ChecklistInline(admin.TabularInline):
     model      = ChecklistItem
     extra      = 0
@@ -218,16 +235,32 @@ class ChecklistInline(admin.TabularInline):
 
 @admin.register(Viagem)
 class ViagemAdmin(admin.ModelAdmin):
-    list_display   = ["id", "responsavel", "loja", "mochila", "status", "data_saida", "data_retorno"]
-    list_filter    = ["status", "loja"]
-    search_fields  = ["responsavel__username", "loja__nome", "mochila__nome"]
-    inlines        = [ChecklistInline]
+    list_display   = ["id", "responsavel", "lojas_display", "mochila", "status", "data_saida", "data_retorno"]
+    list_filter    = ["status", "viagem_lojas__loja"]
+    search_fields  = ["responsavel__username", "viagem_lojas__loja__nome", "mochila__nome"]
+    inlines        = [ViagemLojaInline, ChecklistInline]
     date_hierarchy = "data_saida"
 
     def get_readonly_fields(self, request, obj=None):
         if obj:
             return ["mochila", "data_saida"]
         return []
+
+    @admin.display(description="Lojas")
+    def lojas_display(self, obj):
+        return obj.lojas_nomes or "—"
+
+
+@admin.register(ViagemLoja)
+class ViagemLojaAdmin(admin.ModelAdmin):
+    """
+    Registro direto de ViagemLoja — útil para diagnóstico e correções pontuais.
+    """
+    list_display  = ["id", "viagem", "loja", "ordem"]
+    list_filter   = ["loja", "viagem__status"]
+    search_fields = ["viagem__id", "loja__nome"]
+    raw_id_fields = ["viagem"]
+    ordering      = ["viagem", "ordem"]
 
 
 @admin.register(ChecklistItem)

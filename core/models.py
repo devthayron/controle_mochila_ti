@@ -152,6 +152,46 @@ class MochilaItem(models.Model):
 # VIAGEM
 # ─────────────────────────────────────────────
 
+
+# ─────────────────────────────────────────────
+# VIAGEM LOJA (tabela intermediária)
+# ─────────────────────────────────────────────
+
+class ViagemLoja(models.Model):
+    """
+    Tabela intermediária entre Viagem e Loja.
+    Permite que uma Viagem tenha múltiplas Lojas de destino.
+    O Checklist continua vinculado apenas à Viagem.
+    """
+    viagem = models.ForeignKey(
+        "Viagem",
+        on_delete=models.CASCADE,
+        related_name="viagem_lojas",
+    )
+    loja = models.ForeignKey(
+        "Loja",
+        on_delete=models.PROTECT,
+        related_name="viagem_lojas",
+    )
+    ordem = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Ordem de visita da loja na viagem",
+    )
+
+    class Meta:
+        unique_together     = ("viagem", "loja")
+        ordering            = ["ordem", "id"]
+        verbose_name        = "Loja da Viagem"
+        verbose_name_plural = "Lojas da Viagem"
+
+    def __str__(self):
+        return f"{self.loja.nome} — Viagem #{self.viagem_id}"
+
+
+# ─────────────────────────────────────────────
+# VIAGEM (atualizada — sem FK direta para Loja)
+# ─────────────────────────────────────────────
+
 class Viagem(models.Model):
     STATUS_CHOICES = [
         ("andamento",  "Em andamento"),
@@ -159,8 +199,14 @@ class Viagem(models.Model):
     ]
 
     responsavel  = models.ForeignKey(User,    on_delete=models.PROTECT)
-    loja         = models.ForeignKey(Loja,    on_delete=models.PROTECT)
     mochila      = models.ForeignKey(Mochila, on_delete=models.PROTECT)
+
+    # Lojas agora via ViagemLoja (M2M com tabela intermediária)
+    lojas = models.ManyToManyField(
+        Loja,
+        through="ViagemLoja",
+        related_name="viagens",
+    )
 
     data_saida   = models.DateTimeField(default=timezone.now)
     data_retorno = models.DateTimeField(null=True, blank=True)
@@ -182,11 +228,20 @@ class Viagem(models.Model):
         ]
 
     def __str__(self):
-        return f"Viagem #{self.id} — {self.loja}"
+        lojas = ", ".join(vl.loja.nome for vl in self.viagem_lojas.select_related("loja"))
+        return f"Viagem #{self.id} — {lojas or 'sem loja'}"
 
     @property
     def em_andamento(self) -> bool:
         return self.status == "andamento"
+
+    @property
+    def lojas_nomes(self) -> str:
+        """Nomes das lojas separados por vírgula — útil em templates."""
+        return ", ".join(
+            vl.loja.nome
+            for vl in self.viagem_lojas.select_related("loja").order_by("ordem")
+        )
 
 
 # ─────────────────────────────────────────────

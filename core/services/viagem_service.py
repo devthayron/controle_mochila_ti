@@ -19,7 +19,7 @@ from ..exceptions import (
     MochilaVaziaError,
     ViagemJaFinalizada,
 )
-from ..models import ChecklistItem, Mochila, Viagem
+from ..models import ChecklistItem, Loja, Mochila, Viagem, ViagemLoja
 
 logger = logging.getLogger("core.services.viagem")
 
@@ -29,11 +29,36 @@ logger = logging.getLogger("core.services.viagem")
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viagem:
+def criar_viagem(
+    user: User,
+    responsavel: User,
+    lojas: list[Loja],          # ← agora uma lista
+    mochila: Mochila,
+) -> Viagem:
     """
     Cria uma viagem com checklist automático.
+    Aceita uma ou mais lojas de destino.
+
     Pré-condição: o chamador já verificou permissão de criação.
+
+    Args:
+        user:        usuário que executa a ação (para log).
+        responsavel: técnico responsável pela viagem.
+        lojas:       lista de Loja — mínimo 1, sem duplicatas.
+        mochila:     mochila a ser utilizada.
     """
+    if not lojas:
+        from ..exceptions import DomainError
+        raise DomainError("Selecione ao menos uma loja de destino.")
+
+    # Deduplicar mantendo ordem (list de PKs distintos)
+    seen_pks: set[int] = set()
+    lojas_unicas: list[Loja] = []
+    for loja in lojas:
+        if loja.pk not in seen_pks:
+            seen_pks.add(loja.pk)
+            lojas_unicas.append(loja)
+
     mochila = (
         Mochila.all_objects
         .select_for_update()
@@ -53,11 +78,17 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
 
     viagem = Viagem.objects.create(
         responsavel=responsavel,
-        loja=loja,
         mochila=mochila,
         status="andamento",
     )
 
+    # Cria os registros intermediários Viagem ↔ Loja
+    ViagemLoja.objects.bulk_create([
+        ViagemLoja(viagem=viagem, loja=loja, ordem=idx)
+        for idx, loja in enumerate(lojas_unicas)
+    ])
+
+    # Checklist criado UMA ÚNICA VEZ por viagem (não por loja)
     ChecklistItem.objects.bulk_create([
         ChecklistItem(
             viagem=viagem,
@@ -67,7 +98,11 @@ def criar_viagem(user: User, responsavel: User, loja, mochila: Mochila) -> Viage
         for mi in itens
     ])
 
-    logger.info("Viagem #%s criada por %s", viagem.pk, user.username)
+    lojas_str = ", ".join(l.nome for l in lojas_unicas)
+    logger.info(
+        "Viagem #%s criada por %s → lojas: %s",
+        viagem.pk, user.username, lojas_str,
+    )
     return viagem
 
 
@@ -103,24 +138,25 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
 # ──────────────────────────────────────────────
 
 @transaction.atomic
-def salvar_checklist(user: User, viagem: Viagem, payload: dict, pode_editar_saida: bool = False):
+def salvar_checklist(
+    user: User,
+    viagem: Viagem,
+    payload: dict,
+    pode_editar_saida: bool = False,
+):
     """
     Atualiza itens do checklist de uma viagem.
-
     Pré-condição: o chamador já verificou permissão de edição do checklist.
-
-    Args:
-        user:              usuário que executa a ação (para log).
-        viagem:            viagem cujo checklist será atualizado.
-        payload:           {checklist_item_pk: {saida_ok, retorno_ok, observacao_retorno}}.
-        pode_editar_saida: True se o usuário tem permissão para alterar saida_ok
-                           (calculado pela view via permissions.pode_editar).
     """
     viagem = (
         Viagem.objects
         .select_for_update()
         .get(pk=viagem.pk)
     )
+
+    if viagem.status != "andamento":
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied("Checklist bloqueado — viagem finalizada.")
 
     checklist = viagem.checklist.select_related("item")
     to_update = []
@@ -166,3 +202,27 @@ def payload_from_post(post_data, checklist_ids: list[int]) -> dict:
         }
         for cid in checklist_ids
     }
+
+
+def lojas_from_post(post_data, loja_model) -> list:
+    """
+    Extrai a lista de Loja a partir dos IDs enviados via POST.
+    Retorna lista de instâncias Loja na ordem recebida.
+    """
+    raw_ids = post_data.getlist("lojas")
+    pks = []
+    seen: set[int] = set()
+    for raw in raw_ids:
+        try:
+            pk = int(raw)
+            if pk not in seen:
+                seen.add(pk)
+                pks.append(pk)
+        except (ValueError, TypeError):
+            continue
+
+    if not pks:
+        return []
+
+    loja_map = {loja.pk: loja for loja in loja_model.objects.filter(pk__in=pks)}
+    return [loja_map[pk] for pk in pks if pk in loja_map]

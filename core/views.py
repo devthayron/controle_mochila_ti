@@ -169,6 +169,8 @@ class TrocarSenhaView(View):
 # DASHBOARD
 # ──────────────────────────────────────────────
 
+# Substituir DashboardView em views.py por esta versão:
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "core/dashboard.html"
 
@@ -179,7 +181,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
         viagens_qs = perms.filtrar_viagens(
             self.request.user,
-            Viagem.objects.select_related("responsavel", "loja", "mochila"),
+            Viagem.objects.select_related("responsavel", "mochila")
+                          .prefetch_related("viagem_lojas__loja"),
         )
 
         context.update({
@@ -220,6 +223,9 @@ class ViagemChecklistPDFView(LoginRequiredMixin, View):
         return response
 
 
+# ── ViagemListView ───────────────────────────────────────────────────────────
+# Substituir em views.py
+
 class ViagemListView(LoginRequiredMixin, ListView):
     model               = Viagem
     template_name       = "core/viagem_list.html"
@@ -229,7 +235,10 @@ class ViagemListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = perms.filtrar_viagens(
             self.request.user,
-            Viagem.objects.select_related("responsavel", "loja", "mochila").order_by("-id"),
+            Viagem.objects
+                  .select_related("responsavel", "mochila")
+                  .prefetch_related("viagem_lojas__loja")
+                  .order_by("-id"),
         )
         q      = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status")
@@ -237,15 +246,15 @@ class ViagemListView(LoginRequiredMixin, ListView):
 
         if q:
             qs = qs.filter(
-                Q(responsavel__username__icontains=q)   |
-                Q(responsavel__first_name__icontains=q) |
-                Q(responsavel__last_name__icontains=q)  |
-                Q(loja__nome__icontains=q)
-            )
+                Q(responsavel__username__icontains=q)        |
+                Q(responsavel__first_name__icontains=q)      |
+                Q(responsavel__last_name__icontains=q)       |
+                Q(viagem_lojas__loja__nome__icontains=q)     # ← era loja__nome
+            ).distinct()
         if status:
             qs = qs.filter(status=status)
         if loja:
-            qs = qs.filter(loja_id=loja)
+            qs = qs.filter(viagem_lojas__loja_id=loja)      # ← era loja_id=loja
         return qs
 
     def get_context_data(self, **kwargs):
@@ -254,13 +263,20 @@ class ViagemListView(LoginRequiredMixin, ListView):
         return context
 
 
+# ── ViagemDetailView ─────────────────────────────────────────────────────────
+
 class ViagemDetailView(LoginRequiredMixin, DetailView):
     model               = Viagem
     template_name       = "core/viagem_detail.html"
     context_object_name = "viagem"
 
     def get_object(self, queryset=None):
-        viagem = get_object_or_404(Viagem, pk=self.kwargs["pk"])
+        viagem = get_object_or_404(
+            Viagem.objects
+                  .select_related("responsavel", "mochila")
+                  .prefetch_related("viagem_lojas__loja"),
+            pk=self.kwargs["pk"],
+        )
         if not perms.pode_ver_viagem(self.request.user, viagem):
             raise PermissionDenied("Você não tem acesso a esta viagem.")
         return viagem
@@ -271,11 +287,10 @@ class ViagemDetailView(LoginRequiredMixin, DetailView):
         total         = checklist.count()
         retornados_ok = checklist.filter(retorno_ok=True).count()
         context.update({
-            "checklist_items": checklist,
-            "retornados_ok":   retornados_ok,
-            "total_itens":     total,
-            "pendentes":       total - retornados_ok,
-            # Object-level: depende do estado da viagem + papel do usuário
+            "checklist_items":     checklist,
+            "retornados_ok":       retornados_ok,
+            "total_itens":         total,
+            "pendentes":           total - retornados_ok,
             "pode_editar_checklist": perms.pode_editar_checklist(
                 self.request.user, self.object
             ),
@@ -283,33 +298,47 @@ class ViagemDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-class ViagemCreateView(SupervisorRequiredMixin, CreateView):
-    # SupervisorRequiredMixin garante pode_editar — sem checagem adicional de role
-    model         = Viagem
-    form_class    = ViagemForm
+# Substituir ViagemCreateView em views.py por esta versão:
+
+class ViagemCreateView(SupervisorRequiredMixin, View):
     template_name = "core/viagem_form.html"
 
-    def get_success_url(self):
-        return reverse_lazy("viagem_detail", kwargs={"pk": self.object.pk})
+    def get(self, request):
+        form = ViagemForm()
+        context = self._build_context(form)
+        return render(request, self.template_name, context)
 
-    def form_valid(self, form):
+    def post(self, request):
+        from .services.viagem_service import lojas_from_post
+        from .models import Loja
+
+        form = ViagemForm(request.POST)
+
+        if not form.is_valid():
+            return render(request, self.template_name, self._build_context(form))
+
+        lojas = lojas_from_post(request.POST, Loja)
+
+        if not lojas:
+            form.add_error(None, "Selecione ao menos uma loja de destino.")
+            return render(request, self.template_name, self._build_context(form))
+
         try:
-            self.object = criar_viagem(
-                user=self.request.user,
+            viagem = criar_viagem(
+                user=request.user,
                 responsavel=form.cleaned_data["responsavel"],
-                loja=form.cleaned_data["loja"],
+                lojas=lojas,
                 mochila=form.cleaned_data["mochila"],
             )
         except DomainError as e:
-            messages.error(self.request, str(e))
-            return self.form_invalid(form)
+            messages.error(request, str(e))
+            return render(request, self.template_name, self._build_context(form))
 
-        _log(self.request.user, self.object, ADDITION, "Viagem criada")
-        messages.success(self.request, "Viagem registrada com sucesso!")
-        return redirect(self.get_success_url())
+        _log(request.user, viagem, ADDITION, "Viagem criada")
+        messages.success(request, "Viagem registrada com sucesso!")
+        return redirect(reverse_lazy("viagem_detail", kwargs={"pk": viagem.pk}))
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def _build_context(self, form):
         mochilas_dict = {
             str(m.pk): [
                 {"item": mi.item.nome, "quantidade": mi.quantidade}
@@ -317,8 +346,12 @@ class ViagemCreateView(SupervisorRequiredMixin, CreateView):
             ]
             for m in Mochila.objects.prefetch_related("mochilaitem_set__item")
         }
-        context["mochilas_json"] = json.dumps(mochilas_dict)
-        return context
+        from .models import Loja
+        return {
+            "form":          form,
+            "mochilas_json": json.dumps(mochilas_dict),
+            "lojas_disponiveis": Loja.objects.order_by("nome"),
+        }
 
 
 @method_decorator(require_POST, name="dispatch")
@@ -552,13 +585,22 @@ class ItemDeleteView(SupervisorRequiredMixin, View):
 # LOJAS
 # ──────────────────────────────────────────────
 
+from django.db.models import Count, Q
+
 class LojaListView(LoginRequiredMixin, ListView):
-    model               = Loja
-    template_name       = "core/loja_list.html"
+    model = Loja
+    template_name = "core/loja_list.html"
     context_object_name = "lojas"
 
     def get_queryset(self):
-        return Loja.objects.annotate(total_viagens=Count("viagem")).order_by("nome")
+        return Loja.objects.annotate(
+            total_viagens=Count("viagens", distinct=True),
+            viagens_andamento=Count(
+                "viagens",
+                filter=Q(viagens__status="andamento"),
+                distinct=True
+            )
+        ).order_by("nome")
 
 
 class LojaCreateView(SupervisorRequiredMixin, CreateView):

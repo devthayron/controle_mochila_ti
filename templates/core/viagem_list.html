@@ -28,6 +28,7 @@
     <div class="card-body" style="padding:16px 20px;">
         <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
             <div class="search-bar">
+                <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="search" name="q" placeholder="Responsável, loja…" value="{{ request.GET.q }}">
             </div>
             <select name="status" class="form-input" style="min-width:160px;">
@@ -62,7 +63,7 @@
                 <tr>
                     <th>#</th>
                     <th>Responsável</th>
-                    <th>Loja</th>
+                    <th>Lojas</th>
                     <th>Mochila</th>
                     <th>Saída</th>
                     <th>Retorno</th>
@@ -83,7 +84,7 @@
                         <span style="font-weight:500;">{{ v.responsavel.get_full_name|default:v.responsavel.username }}</span>
                     </div>
                 </td>
-                <td>{{ v.loja.nome }}</td>
+                <td>{{ v.lojas_nomes }}</td>
                 <td><span class="badge badge-blue">{{ v.mochila.nome }}</span></td>
                 <td class="muted small">
                     {{ v.data_saida|date:"d/m/Y" }}<br>

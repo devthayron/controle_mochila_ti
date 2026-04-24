@@ -10,6 +10,66 @@
     <span class="current">Nova Viagem</span>
 {% endblock %}
 
+{% block extra_head %}
+<style>
+.loja-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    animation: fadeIn .2s ease;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+.loja-row select {
+    flex: 1;
+}
+
+.btn-remove-loja {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(200,16,46,.3);
+    background: rgba(200,16,46,.08);
+    color: var(--ap-red-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: .8rem;
+    flex-shrink: 0;
+    transition: background .15s;
+}
+.btn-remove-loja:hover { background: rgba(200,16,46,.18); }
+.btn-remove-loja:disabled { opacity: .3; cursor: not-allowed; }
+
+.loja-ordem-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+#lojas-container { margin-bottom: 8px; }
+
+.loja-duplicate-warning {
+    font-size: .75rem;
+    color: var(--ap-red-light);
+    display: none;
+    margin-top: 4px;
+}
+.loja-duplicate-warning.visible { display: block; }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <div class="page-header">
@@ -55,15 +115,26 @@
                         {% endif %}
                     </div>
 
-                    <div class="form-group">
-                        <label for="{{ form.loja.id_for_label }}">
+                    <!-- LOJAS (dinâmico) -->
+                    <div class="form-group full">
+                        <label>
                             <i class="fa-solid fa-store" style="color:var(--text-muted);margin-right:5px;"></i>
-                            Loja de Destino
+                            Lojas de Destino
+                            <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;">(uma ou mais)</span>
                         </label>
-                        {{ form.loja }}
-                        {% if form.loja.errors %}
-                        <span class="error-text">{{ form.loja.errors.as_text }}</span>
-                        {% endif %}
+
+                        <div id="lojas-container">
+                            <!-- Linhas de loja são inseridas pelo JS -->
+                        </div>
+
+                        <span class="loja-duplicate-warning" id="dup-warning">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Loja duplicada — cada loja pode aparecer apenas uma vez.
+                        </span>
+
+                        <button type="button" class="btn btn-ghost btn-sm" id="btn-add-loja" style="margin-top:6px;">
+                            <i class="fa-solid fa-plus"></i> Adicionar loja
+                        </button>
                     </div>
 
                     <div class="form-group full">
@@ -87,7 +158,7 @@
 
                 <div class="form-actions">
                     <a href="{% url 'viagem_list' %}" class="btn btn-ghost">Cancelar</a>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="btn-submit">
                         <i class="fa-solid fa-paper-plane"></i> Registrar Saída
                     </button>
                 </div>
@@ -96,7 +167,7 @@
         </div>
     </div>
 
-    <!-- PREVIEW -->
+    <!-- PREVIEW DA MOCHILA -->
     <div class="card hidden" id="mochila-preview">
         <div class="card-header">
             <h2><i class="fa-solid fa-briefcase icon-info"></i> Conteúdo da Mochila</h2>
@@ -104,7 +175,6 @@
         <div id="mochila-itens"></div>
     </div>
 
-    <!-- EMPTY STATE -->
     <div class="card" id="mochila-empty-card">
         <div class="card-body">
             <div class="empty-state">
@@ -121,14 +191,22 @@
 
 {% block extra_js %}
 <script>
-const mochilaData = {{ mochilas_json|safe|default:"{}" }};
-const sel         = document.querySelector('[name="mochila"]');
+// ── DADOS DO BACKEND ─────────────────────────────────────────────────
+const mochilaData   = {{ mochilas_json|safe|default:"{}" }};
+const lojasDisponiveis = [
+    {% for loja in lojas_disponiveis %}
+    { id: "{{ loja.pk }}", nome: "{{ loja.nome|escapejs }}" }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+];
+
+// ── PREVIEW DA MOCHILA ───────────────────────────────────────────────
+const selMochila  = document.querySelector('[name="mochila"]');
 const preview     = document.getElementById('mochila-preview');
 const emptyCard   = document.getElementById('mochila-empty-card');
 const container   = document.getElementById('mochila-itens');
 
 function updatePreview() {
-    const id = sel.value;
+    const id = selMochila.value;
     if (!id || !mochilaData[id]) {
         preview.classList.add('hidden');
         emptyCard.classList.remove('hidden');
@@ -161,7 +239,90 @@ function updatePreview() {
         </div>`;
 }
 
-sel.addEventListener('change', updatePreview);
+selMochila.addEventListener('change', updatePreview);
 updatePreview();
+
+// ── SELETOR DINÂMICO DE LOJAS ────────────────────────────────────────
+const lojasContainer = document.getElementById('lojas-container');
+const btnAddLoja     = document.getElementById('btn-add-loja');
+const dupWarning     = document.getElementById('dup-warning');
+const btnSubmit      = document.getElementById('btn-submit');
+
+function buildOptions(selectedId = '') {
+    return lojasDisponiveis.map(l =>
+        `<option value="${l.id}" ${l.id === selectedId ? 'selected' : ''}>${l.nome}</option>`
+    ).join('');
+}
+
+function getSelectedLojaIds() {
+    return Array.from(
+        lojasContainer.querySelectorAll('select[name="lojas"]')
+    ).map(s => s.value).filter(Boolean);
+}
+
+function hasDuplicates(ids) {
+    return new Set(ids).size !== ids.length;
+}
+
+function refreshBadges() {
+    lojasContainer.querySelectorAll('.loja-ordem-badge').forEach((badge, idx) => {
+        badge.textContent = idx + 1;
+    });
+    // Botão remover desabilitado se só há 1 linha
+    const rows = lojasContainer.querySelectorAll('.loja-row');
+    rows.forEach(row => {
+        row.querySelector('.btn-remove-loja').disabled = rows.length === 1;
+    });
+    // Alerta de duplicata
+    const ids  = getSelectedLojaIds();
+    const dup  = hasDuplicates(ids);
+    dupWarning.classList.toggle('visible', dup);
+    btnSubmit.disabled = dup;
+}
+
+function addLojaRow(selectedId = '') {
+    const row = document.createElement('div');
+    row.className = 'loja-row';
+    row.innerHTML = `
+        <span class="loja-ordem-badge">1</span>
+        <select name="lojas" class="form-input">
+            <option value="">Selecione uma loja…</option>
+            ${buildOptions(selectedId)}
+        </select>
+        <button type="button" class="btn-remove-loja" title="Remover loja" onclick="removeLojaRow(this)">
+            <i class="fa-solid fa-xmark"></i>
+        </button>`;
+    lojasContainer.appendChild(row);
+    row.querySelector('select').addEventListener('change', refreshBadges);
+    refreshBadges();
+}
+
+function removeLojaRow(btn) {
+    const rows = lojasContainer.querySelectorAll('.loja-row');
+    if (rows.length <= 1) return;
+    btn.closest('.loja-row').remove();
+    refreshBadges();
+}
+
+btnAddLoja.addEventListener('click', () => addLojaRow());
+
+// Validação no submit: bloqueia se algum select estiver vazio
+document.getElementById('viagem-form').addEventListener('submit', function(e) {
+    const ids = getSelectedLojaIds();
+    if (ids.length === 0 || ids.some(id => !id)) {
+        e.preventDefault();
+        dupWarning.textContent = 'Selecione ao menos uma loja antes de continuar.';
+        dupWarning.classList.add('visible');
+        return;
+    }
+    if (hasDuplicates(ids)) {
+        e.preventDefault();
+        dupWarning.textContent = 'Remova as lojas duplicadas antes de continuar.';
+        dupWarning.classList.add('visible');
+    }
+});
+
+// Inicializa com 1 linha vazia
+addLojaRow();
 </script>
 {% endblock %}

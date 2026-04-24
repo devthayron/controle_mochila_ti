@@ -28,22 +28,35 @@ class MochilaForm(forms.ModelForm):
         }
 
 
-class ViagemForm(forms.ModelForm):
-    class Meta:
-        model  = Viagem
-        fields = ["responsavel", "loja", "mochila"]
-        widgets = {
-            "responsavel": forms.Select(attrs={"class": "form-input"}),
-            "loja":        forms.Select(attrs={"class": "form-input"}),
-            "mochila":     forms.Select(attrs={"class": "form-input"}),
-        }
+# Substituir a classe ViagemForm em forms.py por esta versão:
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # AtivoManager já filtra ativo=True — apenas ordenamos
-        self.fields["loja"].queryset        = Loja.objects.order_by("nome")
-        self.fields["mochila"].queryset     = Mochila.objects.order_by("nome")
-        self.fields["responsavel"].queryset = User.objects.filter(is_active=True).order_by("username")
+class ViagemForm(forms.Form):
+    """
+    Formulário de criação de Viagem com suporte a múltiplas lojas.
+
+    Usa forms.Form (não ModelForm) porque o campo `lojas` é um
+    MultipleChoiceField dinâmico gerenciado via JS no template.
+    A criação real do objeto é feita pelo viagem_service.
+    """
+    responsavel = forms.ModelChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by("username"),
+        widget=forms.Select(attrs={"class": "form-input"}),
+        label="Responsável",
+    )
+    mochila = forms.ModelChoiceField(
+        queryset=Mochila.objects.order_by("nome"),
+        widget=forms.Select(attrs={"class": "form-input"}),
+        label="Mochila",
+    )
+    # Lojas são enviadas como lista via POST (name="lojas"),
+    # validadas manualmente em clean() para dar mensagem clara.
+    # O campo real não aparece no form HTML — é gerado pelo JS.
+
+    def clean(self):
+        cleaned = super().clean()
+        # Lojas validadas na view (via lojas_from_post) para ter
+        # acesso direto ao request.POST.getlist("lojas").
+        return cleaned
 
 
 class LojaForm(forms.ModelForm):

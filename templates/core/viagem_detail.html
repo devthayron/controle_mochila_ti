@@ -29,7 +29,7 @@
                 </span>
             {% endif %}
         </div>
-        <p>{{ viagem.loja.nome }} &middot; {{ viagem.data_saida|date:"d/m/Y" }}</p>
+        <p>{{ viagem.lojas_nomes }} &middot; {{ viagem.data_saida|date:"d/m/Y" }}</p>
     </div>
     <div class="page-header-right">
         <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
@@ -49,6 +49,7 @@
 
 <!-- DETAIL CARDS -->
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;">
+
     <div class="card" style="padding:18px 20px;">
         <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
             <i class="fa-solid fa-user" style="margin-right:4px;"></i>Responsável
@@ -60,16 +61,36 @@
             <span style="font-weight:600;font-size:.9rem;">{{ viagem.responsavel.get_full_name|default:viagem.responsavel.username }}</span>
         </div>
     </div>
+        <!-- LOJAS (compacto) -->
+        <div class="card" style="padding:14px 16px;">
+            <div style="font-size:.62rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;">
+                <i class="fa-solid fa-store" style="margin-right:4px;"></i>
+                Lojas de destino
+            </div>
 
-    <div class="card" style="padding:18px 20px;">
-        <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
-            <i class="fa-solid fa-store" style="margin-right:4px;"></i>Loja destino
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                {% for vl in viagem.viagem_lojas.all %}
+                    <span style="
+                        display:flex;
+                        align-items:center;
+                        gap:5px;
+                        padding:4px 6px;
+                        border-radius:999px;
+                        background:var(--bg-hover);
+                        border:1px solid var(--border);
+                        font-size:.75rem;
+                        font-weight:600;
+                    ">
+                        <i class="fa-solid fa-store" style="font-size:.7rem;color:var(--ap-red);"></i>
+                        {{ vl.loja.nome }}
+                    </span>
+
+                    {% if not forloop.last %}
+                        <span style="color:var(--text-muted);font-weight:700;font-size:.8rem;">/</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
         </div>
-        <div style="font-weight:600;font-size:.9rem;display:flex;align-items:center;gap:8px;">
-            <i class="fa-solid fa-store" style="color:var(--ap-red);"></i>
-            {{ viagem.loja.nome }}
-        </div>
-    </div>
 
     <div class="card" style="padding:18px 20px;">
         <div style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
@@ -98,6 +119,7 @@
         <div style="font-size:.8rem;color:var(--text-muted);font-family:'DM Mono',monospace;">{{ viagem.data_retorno|time:"H:i" }}</div>
     </div>
     {% endif %}
+
 </div>
 
 <!-- CHECKLIST -->
@@ -150,7 +172,6 @@
                         <span class="qty-badge">{{ ci.quantidade }}</span>
                     </td>
 
-                    {# Saída OK — só supervisor/admin pode alterar #}
                     <td style="text-align:center;">
                         <label class="toggle-wrap" style="justify-content:center;">
                             <div class="toggle">
@@ -176,7 +197,6 @@
                         </label>
                     </td>
 
-                    {# Observação — mesma regra do retorno_ok #}
                     <td>
                         <input type="text"
                             name="obs_{{ ci.id }}"
@@ -193,7 +213,6 @@
             </table>
         </div>
 
-        {# Botão salvar — só aparece se pode editar o checklist desta viagem #}
         {% if viagem.status == 'andamento' and pode_editar_checklist %}
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:16px 20px;border-top:1px solid var(--border);">
             <span style="font-size:.8rem;color:var(--text-muted);">
@@ -232,22 +251,18 @@
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;padding:20px;">
-
         <div style="text-align:center;">
             <div style="font-size:2rem;font-weight:700;">{{ total_itens }}</div>
             <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Total de itens</div>
         </div>
-
         <div style="text-align:center;">
             <div style="font-size:2rem;font-weight:700;color:var(--accent-green);">{{ retornados_ok }}</div>
             <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Retornados OK</div>
         </div>
-
         <div style="text-align:center;">
             <div style="font-size:2rem;font-weight:700;color:var(--ap-red-light);">{{ pendentes }}</div>
             <div style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">Com pendência</div>
         </div>
-
     </div>
 </div>
 {% endif %}

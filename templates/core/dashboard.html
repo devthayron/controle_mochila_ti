@@ -75,7 +75,7 @@
                 <tr>
                     <th>#</th>
                     <th>Responsável</th>
-                    <th>Loja</th>
+                    <th>Lojas</th>
                     <th>Mochila</th>
                     <th>Saída</th>
                     <th>Status</th>
@@ -94,7 +94,7 @@
                         <strong>{{ v.responsavel.get_full_name|default:v.responsavel.username }}</strong>
                     </div>
                 </td>
-                <td>{{ v.loja.nome }}</td>
+                <td>{{ v.lojas_nomes }}</td>
                 <td><span class="badge badge-blue">{{ v.mochila.nome }}</span></td>
                 <td class="muted small">{{ v.data_saida|date:"d/m/Y H:i" }}</td>
                 <td>
@@ -146,7 +146,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Loja</th>
+                        <th>Lojas</th>
                         <th>Responsável</th>
                         <th>Status</th>
                         <th></th>
@@ -156,7 +156,7 @@
                 {% for v in ultimas_viagens %}
                 <tr>
                     <td class="muted mono">#{{ v.id }}</td>
-                    <td>{{ v.loja.nome }}</td>
+                    <td>{{ v.lojas_nomes }}</td>
                     <td class="muted">{{ v.responsavel.username }}</td>
                     <td>
                         {% if v.status == 'andamento' %}
