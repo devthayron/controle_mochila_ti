@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────
-   forms.css — Campos, labels, toggle e search bar
+   forms.css — Campos, labels, toggle e search bar (REFATORADO)
    ───────────────────────────────────────────────────────── */
 
 
@@ -31,12 +31,20 @@ label {
 }
 
 
-/* ─── INPUTS GERAIS ─────────────────────────────────────── */
-input[type="text"],
-input[type="number"],
-input[type="date"],
-input[type="search"],
-select,
+/* ─── INPUT BASE (UNIFICADO) ───────────────────────────── */
+input,
+select {
+    width: 100%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: .85rem;
+    padding: 8px 10px;
+    outline: none;
+    transition: .15s;
+}
 textarea {
     width: 100%;
     background: var(--bg-surface);
@@ -44,45 +52,87 @@ textarea {
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     font-family: inherit;
-    font-size: .875rem;
-    padding: 10px 12px;
+    font-size: .85rem;
+    padding: 8px 10px;
     outline: none;
-    transition: border-color .15s, box-shadow .15s, background .15s;
+
+    resize: none;
+    overflow: hidden;
+
+    min-height: 40px;   /* pequeno padrão */
+    max-height: 170px;
+    line-height: 1.4;
 }
 
-/* foco mais limpo e consistente */
+/* hover leve */
+input:hover,
+select:hover,
+textarea:hover {
+    border-color: rgba(200, 16, 46, 0.35);
+}
+
+/* foco consistente */
 input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--ap-red);
     box-shadow: 0 0 0 3px rgba(200, 16, 46, .12);
-    background: var(--bg-card);
+    background: var(--bg-surface);
 }
 
-/* opções do select */
+/* placeholder */
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-muted);
+    opacity: .8;
+}
+
+/* autofill Chrome */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--bg-surface) inset !important;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+
+/* ─── TEXTAREA ─────────────────────────────────────────── */
+textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+
+/* AUTO-GROW (modo profissional) */
+textarea.auto-grow {
+    resize: none;
+    overflow: hidden;
+    min-height: 40px;
+    line-height: 1.4;
+}
+
+
+/* ─── SELECT OPTIONS ───────────────────────────────────── */
 select option {
-    background: var(--bg-card);
+    background: var(--bg-surface);
     color: var(--text-primary);
 }
 
-textarea {
-    resize: vertical;
-    min-height: 90px;
-}
 
-
-/* ─── MULTI SELECT (MOCHILA) ───────────────────────────── */
-select[multiple] {
-    min-height: 320px;
+/* ─── MULTI SELECT ─────────────────────────────────────── */
+select[multiple],
+.multi-select {
+    min-height: 260px;
     padding: 10px;
     border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
     background: var(--bg-surface);
-    border: 1px solid var(--border);
     color: var(--text-primary);
+    overflow-y: auto;
 }
 
 
-/* ─── TOGGLE ────────────────────────────────────────────── */
+/* ─── TOGGLE ───────────────────────────────────────────── */
 .toggle-wrap {
     display: flex;
     align-items: center;
@@ -151,115 +201,15 @@ select[multiple] {
 }
 
 
-/* ─── MULTI SELECT (CLEAN + ESCALÁVEL) ─────────────────── */
-.multi-select {
-    width: 100%;
-    min-height: 320px;
-    padding: 10px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-light);
-    background: var(--bg-surface);
-    color: var(--text-primary);
-    overflow-y: auto;
-}
-
-/* ─── FORM CARD CENTRALIZADO ───────────────────────────── */
-
+/* ─── FORM CARD ────────────────────────────────────────── */
 .card-form {
-    max-width: 720px;      /* diminui largura */
-    margin: 0 auto;        /* centraliza */
+    width: min(720px, 100%);
+    margin: 0 auto;
     padding: 22px;
 }
 
-/* garante centralização real em telas grandes */
-.page-content .card-form {
-    margin-left: auto;
-    margin-right: auto;
-}
 
-/* ─── INPUTS MAIS COMPACTOS ────────────────────────────── */
-
-input[type="text"],
-input[type="number"],
-input[type="date"],
-input[type="search"],
-select,
-textarea {
-    font-size: .85rem;
-    padding: 8px 10px;
-}
-
-/* ─── MULTI SELECT MAIS AJUSTADO ───────────────────────── */
-
-select[multiple],
-.multi-select {
-    min-height: 260px;   /* menos altura */
-}
-
-/* ─── FORM MAIS LIMPO ──────────────────────────────────── */
-
+/* ─── LAYOUT AJUSTE ────────────────────────────────────── */
 .form-layout {
-    gap: 14px; /* menos espaçamento */
-}
-
-/* ─────────────────────────────────────────────
-   FIX GLOBAL — INPUTS DARK MODE CONSISTENTE
-   ───────────────────────────────────────────── */
-
-/* garante fundo escuro real consistente */
-input,
-select,
-textarea {
-    background: var(--bg-surface) !important;
-    color: var(--text-primary) !important;
-}
-
-/* placeholder mais suave e visível no dark */
-input::placeholder,
-textarea::placeholder {
-    color: var(--text-muted);
-    opacity: 0.8;
-}
-
-/* foco mais consistente (remove “clareamento” estranho) */
-input:focus,
-select:focus,
-textarea:focus {
-    background: var(--bg-surface) !important;
-    color: var(--text-primary);
-}
-
-/* corrige autofill do Chrome (o bug mais ignorado) */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus {
-    -webkit-text-fill-color: var(--text-primary) !important;
-    -webkit-box-shadow: 0 0 0px 1000px var(--bg-surface) inset !important;
-    transition: background-color 9999s ease-in-out 0s;
-}
-
-/* select options totalmente consistentes */
-select option {
-    background: var(--bg-surface);
-    color: var(--text-primary);
-}
-
-/* remove inconsistência de textarea em alguns browsers */
-textarea {
-    background: var(--bg-surface) !important;
-    color: var(--text-primary) !important;
-}
-
-/* borda mais coerente no dark */
-input,
-select,
-textarea {
-    border: 1px solid var(--border-light);
-}
-
-/* hover leve (sensação de sistema profissional) */
-input:hover,
-select:hover,
-textarea:hover {
-    border-color: rgba(200, 16, 46, 0.35);
+    gap: 14px;
 }

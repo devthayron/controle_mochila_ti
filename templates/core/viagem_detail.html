@@ -196,16 +196,23 @@
                             </div>
                         </label>
                     </td>
-
                     <td>
-                        <input type="text"
-                            name="obs_{{ ci.id }}"
-                            value="{{ ci.observacao_retorno }}"
-                            placeholder="Observação…"
-                            maxlength="255"
-                            style="width:100%;max-width:280px;"
-                            {% if viagem.status == 'finalizada' or not pode_editar_checklist %}disabled
-                            {% elif not user_perms.pode_editar and not ci.saida_ok %}disabled{% endif %}>
+                        {% if user.is_staff %}
+                            <textarea
+                                name="obs_{{ ci.id }}"
+                                placeholder="Observação…"
+                                maxlength="255"
+                                class="auto-grow"
+                                {% if viagem.status == 'finalizada' or not pode_editar_checklist %}readonly{% endif %}
+                            >{{ ci.observacao_retorno }}</textarea>
+                        {% else %}
+                            <textarea
+                                name="obs_{{ ci.id }}"
+                                placeholder="Observação…(Apenas o facilitador)"
+                                class="auto-grow"
+                                readonly
+                            >{{ ci.observacao_retorno}}</textarea>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -266,5 +273,20 @@
     </div>
 </div>
 {% endif %}
+<script>
+function autoGrow(el) {
+    el.style.height = "40px";
+    el.style.height = Math.min(el.scrollHeight, 170) + "px";
+}
 
+document.addEventListener("input", function (e) {
+    if (e.target.tagName.toLowerCase() === "textarea") {
+        autoGrow(e.target);
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(autoGrow);
+});
+</script>
 {% endblock %}
