@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from django.contrib.auth.models import User
 
 if TYPE_CHECKING:
-    from .models import Viagem
+    from core.models import Viagem
 
 # Importa apenas as funções de role — sem risco de import circular
 # pois core.py importa policies DEPOIS de definir os roles.

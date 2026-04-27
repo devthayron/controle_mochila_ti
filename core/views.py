@@ -169,8 +169,6 @@ class TrocarSenhaView(View):
 # DASHBOARD
 # ──────────────────────────────────────────────
 
-# Substituir DashboardView em views.py por esta versão:
-
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "core/dashboard.html"
 
@@ -223,9 +221,6 @@ class ViagemChecklistPDFView(LoginRequiredMixin, View):
         return response
 
 
-# ── ViagemListView ───────────────────────────────────────────────────────────
-# Substituir em views.py
-
 class ViagemListView(LoginRequiredMixin, ListView):
     model               = Viagem
     template_name       = "core/viagem_list.html"
@@ -262,8 +257,6 @@ class ViagemListView(LoginRequiredMixin, ListView):
         context["lojas"] = Loja.objects.all()
         return context
 
-
-# ── ViagemDetailView ─────────────────────────────────────────────────────────
 
 class ViagemDetailView(LoginRequiredMixin, DetailView):
     model               = Viagem
@@ -439,7 +432,6 @@ class ViagemCreateView(SupervisorRequiredMixin, View):
 
 @method_decorator(require_POST, name="dispatch")
 class FinalizarViagemView(SupervisorRequiredMixin, View):
-    # SupervisorRequiredMixin garante pode_editar — sem checagem de role adicional
     def post(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
 
@@ -471,7 +463,6 @@ class ChecklistSaveView(LoginRequiredMixin, View):
         checklist_ids = list(viagem.checklist.values_list("pk", flat=True))
         payload       = payload_from_post(request.POST, checklist_ids)
 
-        # Contexto fino calculado aqui e passado explicitamente ao service
         salvar_checklist(
             user=request.user,
             viagem=viagem,
@@ -917,7 +908,6 @@ class UsuarioEditView(UsuarioAreaMixin, View):
 
 @method_decorator(require_POST, name="dispatch")
 class UsuarioResetSenhaView(AdminRequiredMixin, View):
-    # AdminRequiredMixin garante is_admin — sem checagem adicional de role
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
         resetar_senha(actor=request.user, target=target)

@@ -15,7 +15,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 
-from . import permissions as perms
+from core import permissions as perms 
 
 
 class SupervisorRequiredMixin(LoginRequiredMixin):

@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any
 from django.contrib.auth.models import User
 
 if TYPE_CHECKING:
-    from .models import Viagem
+    from core.models import Viagem
 
 
 # ══════════════════════════════════════════════

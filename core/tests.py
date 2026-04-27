@@ -6,7 +6,7 @@ from django.contrib.auth.models import Group, User
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 
-from . import permissions as perms
+from core import permissions as perms 
 from .exceptions import (
     MochilaEmUsoError,
     MochilaVaziaError,
