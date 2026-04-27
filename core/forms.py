@@ -28,8 +28,6 @@ class MochilaForm(forms.ModelForm):
         }
 
 
-# Substituir a classe ViagemForm em forms.py por esta versão:
-
 class ViagemForm(forms.Form):
     """
     Formulário de criação de Viagem com suporte a múltiplas lojas.

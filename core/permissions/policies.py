@@ -126,7 +126,7 @@ class _Policies:
 
     @staticmethod
     def resetar_senha(user: User, obj=None, context=None) -> bool:
-        return is_admin(user)
+        return is_staff_level(user)
 
     # ── Admin ──────────────────────────────────────────────────────────────
 

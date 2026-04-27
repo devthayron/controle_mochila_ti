@@ -911,7 +911,7 @@ class UsuarioEditView(UsuarioAreaMixin, View):
 
 
 @method_decorator(require_POST, name="dispatch")
-class UsuarioResetSenhaView(AdminRequiredMixin, View):
+class UsuarioResetSenhaView(SupervisorRequiredMixin, View):
     def post(self, request, pk):
         target = get_object_or_404(User, pk=pk)
         resetar_senha(actor=request.user, target=target)
