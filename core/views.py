@@ -494,11 +494,15 @@ class MochilaDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
         context["viagens"] = (
-            Viagem.objects.filter(mochila=self.object)
-            .select_related("loja", "responsavel")
+            Viagem.objects
+            .filter(mochila=self.object)
+            .select_related("responsavel") 
+            .prefetch_related("viagem_lojas__loja")  
             .order_by("-id")
         )
+
         return context
 
 
