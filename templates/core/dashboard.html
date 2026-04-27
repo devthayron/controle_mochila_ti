@@ -79,7 +79,7 @@
                     <th>Mochila</th>
                     <th>Saída</th>
                     <th>Status</th>
-                    <th></th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -104,6 +104,11 @@
                     </span>
                 </td>
                 <td>
+                    {% if v.status == 'andamento' and user_perms.pode_editar %}
+                        <a href="{% url 'viagem_edit' v.pk %}" class="btn btn-ghost btn-sm" title="Editar">
+                            <i class="fa-solid fa-pen"></i>
+                        </a>
+                    {% endif %}
                     <a href="{% url 'viagem_detail' v.pk %}" class="btn btn-ghost btn-sm">
                         <i class="fa-solid fa-eye"></i>
                     </a>
