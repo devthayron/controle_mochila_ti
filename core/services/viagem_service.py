@@ -36,22 +36,23 @@ def _to_aware(dt):
     """Converte datetime naive para aware no fuso local."""
     if dt is None:
         return timezone.now()
-
     if timezone.is_naive(dt):
         return dt.replace(tzinfo=FUSO_LOCAL)
-
     return dt
+
+
+def _fmt(dt) -> str:
+    """Formata datetime aware para exibição no fuso local."""
+    return dt.astimezone(FUSO_LOCAL).strftime("%d/%m/%Y %H:%M")
 
 
 def _deduplicate_lojas(lojas: list[Loja]) -> list[Loja]:
     seen = set()
     result = []
-
     for loja in lojas:
         if loja.pk not in seen:
             seen.add(loja.pk)
             result.append(loja)
-
     return result
 
 
@@ -89,7 +90,6 @@ def criar_viagem(
         raise DomainError("Selecione ao menos uma loja de destino.")
 
     lojas = _deduplicate_lojas(lojas)
-
     mochila = _get_mochila_locked(mochila)
 
     if not mochila.ativo:
@@ -119,12 +119,7 @@ def criar_viagem(
         for mi in itens
     ])
 
-    logger.info(
-        "Viagem #%s criada por %s",
-        viagem.pk,
-        user.username,
-    )
-
+    logger.info("Viagem #%s criada por %s", viagem.pk, user.username)
     return viagem
 
 
@@ -144,12 +139,20 @@ def finalizar_viagem(user: User, viagem: Viagem) -> Viagem:
     if viagem.status != "andamento":
         raise ViagemJaFinalizada("Viagem já finalizada.")
 
+    data_retorno = timezone.now()
+
+    if data_retorno < viagem.data_saida:
+        raise DomainError(
+            f"Atenção: o retorno ({_fmt(data_retorno)}) ficou registrado "
+            f"antes da saída ({_fmt(viagem.data_saida)}). "
+            f"Verifique a data de saída cadastrada."
+        )
+
     viagem.status = "finalizada"
-    viagem.data_retorno = viagem.data_retorno or timezone.now()
+    viagem.data_retorno = data_retorno
     viagem.save(update_fields=["status", "data_retorno"])
 
     logger.info("Viagem #%s finalizada por %s", viagem.pk, user.username)
-
     return viagem
 
 
@@ -188,7 +191,6 @@ def salvar_checklist(
 
         ci.retorno_ok = bool(data.get("retorno_ok"))
         ci.observacao_retorno = (data.get("observacao_retorno") or "")[:255]
-
         to_update.append(ci)
 
     if to_update:
@@ -240,8 +242,5 @@ def lojas_from_post(post_data, loja_model) -> list[Loja]:
     if not pks:
         return []
 
-    loja_map = {
-        l.pk: l for l in loja_model.objects.filter(pk__in=pks)
-    }
-
+    loja_map = {l.pk: l for l in loja_model.objects.filter(pk__in=pks)}
     return [loja_map[pk] for pk in pks if pk in loja_map]

@@ -433,19 +433,23 @@ class ViagemCreateView(SupervisorRequiredMixin, View):
         }
 
 
+# Substitua apenas o método post de FinalizarViagemView no seu views.py
+
 @method_decorator(require_POST, name="dispatch")
 class FinalizarViagemView(SupervisorRequiredMixin, View):
     def post(self, request, pk):
         viagem = get_object_or_404(Viagem, pk=pk)
 
-        # Object-level: quem pode ver ESTA viagem
         if not perms.pode_ver_viagem(request.user, viagem):
             messages.error(request, "Você não tem acesso a esta viagem.")
             return redirect("viagem_list")
 
         try:
-            finalizar_viagem(user=request.user, viagem=viagem)
+            viagem = finalizar_viagem(user=request.user, viagem=viagem)
         except ViagemJaFinalizada as e:
+            messages.error(request, str(e))
+            return redirect("viagem_detail", pk=pk)
+        except DomainError as e:
             messages.error(request, str(e))
             return redirect("viagem_detail", pk=pk)
 
