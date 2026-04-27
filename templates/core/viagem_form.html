@@ -67,6 +67,12 @@
     margin-top: 4px;
 }
 .loja-duplicate-warning.visible { display: block; }
+
+/* ── datetime-local escurece o ícone de calendário nativo ── */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    cursor: pointer;
+}
 </style>
 {% endblock %}
 
@@ -104,6 +110,7 @@
 
                 <div class="form-grid">
 
+                    <!-- Responsável -->
                     <div class="form-group">
                         <label for="{{ form.responsavel.id_for_label }}">
                             <i class="fa-solid fa-user" style="color:var(--text-muted);margin-right:5px;"></i>
@@ -112,6 +119,18 @@
                         {{ form.responsavel }}
                         {% if form.responsavel.errors %}
                         <span class="error-text">{{ form.responsavel.errors.as_text }}</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Data de Saída -->
+                    <div class="form-group">
+                        <label for="{{ form.data_saida.id_for_label }}">
+                            <i class="fa-solid fa-calendar-arrow-up" style="color:var(--text-muted);margin-right:5px;"></i>
+                            Data e Hora de Saída
+                        </label>
+                        {{ form.data_saida }}
+                        {% if form.data_saida.errors %}
+                        <span class="error-text">{{ form.data_saida.errors.as_text }}</span>
                         {% endif %}
                     </div>
 
@@ -137,6 +156,7 @@
                         </button>
                     </div>
 
+                    <!-- Mochila -->
                     <div class="form-group full">
                         <label for="{{ form.mochila.id_for_label }}">
                             <i class="fa-solid fa-briefcase" style="color:var(--text-muted);margin-right:5px;"></i>
@@ -159,7 +179,8 @@
                 <div class="form-actions">
                     <a href="{% url 'viagem_list' %}" class="btn btn-ghost">Cancelar</a>
                     <button type="submit" class="btn btn-primary" id="btn-submit">
-                        <i class="fa-solid fa-paper-plane"></i> Registrar Saída
+                        <i class="fa-solid fa-paper-plane"></i>
+                        {% if editing %}Salvar Alterações{% else %}Registrar Saída{% endif %}
                     </button>
                 </div>
 

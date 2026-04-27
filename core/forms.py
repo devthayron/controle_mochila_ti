@@ -9,6 +9,7 @@ chamar .filter(ativo=True) explicitamente.
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .models import Item, Loja, Mochila, Viagem
 
@@ -30,7 +31,7 @@ class MochilaForm(forms.ModelForm):
 
 class ViagemForm(forms.Form):
     """
-    Formulário de criação de Viagem com suporte a múltiplas lojas.
+    Formulário de criação/edição de Viagem com suporte a múltiplas lojas.
 
     Usa forms.Form (não ModelForm) porque o campo `lojas` é um
     MultipleChoiceField dinâmico gerenciado via JS no template.
@@ -40,6 +41,17 @@ class ViagemForm(forms.Form):
         queryset=User.objects.filter(is_active=True).order_by("username"),
         widget=forms.Select(attrs={"class": "form-input"}),
         label="Responsável",
+    )
+    data_saida = forms.DateTimeField(
+        label="Data e Hora de Saída",
+        input_formats=["%Y-%m-%dT%H:%M", "%d/%m/%Y %H:%M"],
+        widget=forms.DateTimeInput(
+            attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            },
+            format="%Y-%m-%dT%H:%M",
+        ),
     )
     mochila = forms.ModelChoiceField(
         queryset=Mochila.objects.order_by("nome"),
