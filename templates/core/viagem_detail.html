@@ -32,6 +32,11 @@
         <p>{{ viagem.lojas_nomes }} &middot; {{ viagem.data_saida|date:"d/m/Y" }}</p>
     </div>
     <div class="page-header-right">
+            {% if viagem.status == 'andamento' and user_perms.pode_editar %}
+            <a href="{% url 'viagem_edit' viagem.pk %}" class="btn btn-ghost">
+                <i class="fa-solid fa-pen"></i> Editar
+            </a>
+            {% endif %}
         <a href="{% url 'viagem_list' %}" class="btn btn-ghost">
             <i class="fa-solid fa-arrow-left"></i> Voltar
         </a>
