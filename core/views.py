@@ -3,24 +3,18 @@ views.py — Apenas orquestração HTTP.
 
 CONTRATO DE PERMISSÕES:
   - Verificações de ROLE → mixin (SupervisorRequiredMixin, AdminRequiredMixin…)
-  - Verificações de OBJETO → view (pode_ver_viagem, pode_editar_checklist)
+  - Verificações de OBJETO → view (pode_ver_viagem, pode_editar_checklist...)
   - Verificações de CONTEXTO FINO → view (pode_criar_usuario com nível específico)
-  - Nenhuma duplicação: se o mixin já garantiu o papel, a view não repete
 
 CONTEXTO DE PERMISSÕES:
   - `user_perms` é injetado automaticamente em todos os templates via
     settings.py → TEMPLATES → context_processors → core.permissions.permission_context
   - Nenhuma view monta ou injeta user_perms manualmente
 
-LOGIN:
-  - Todas as views (exceto Login/Logout) exigem autenticação.
-  - SupervisorRequiredMixin e AdminRequiredMixin já herdam LoginRequiredMixin.
-  - Views que não usam esses mixins declaram LoginRequiredMixin explicitamente.
 """
 
 import json
 import logging
-
 from django.contrib import messages
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
 from django.contrib.auth import update_session_auth_hash
@@ -244,12 +238,12 @@ class ViagemListView(LoginRequiredMixin, ListView):
                 Q(responsavel__username__icontains=q)        |
                 Q(responsavel__first_name__icontains=q)      |
                 Q(responsavel__last_name__icontains=q)       |
-                Q(viagem_lojas__loja__nome__icontains=q)     # ← era loja__nome
+                Q(viagem_lojas__loja__nome__icontains=q)     
             ).distinct()
         if status:
             qs = qs.filter(status=status)
         if loja:
-            qs = qs.filter(viagem_lojas__loja_id=loja)      # ← era loja_id=loja
+            qs = qs.filter(viagem_lojas__loja_id=loja)     
         return qs
 
     def get_context_data(self, **kwargs):
@@ -291,10 +285,7 @@ class ViagemDetailView(LoginRequiredMixin, DetailView):
         return context
 
 
-import json
-from django.shortcuts import get_object_or_404, render, redirect
-from django.core.exceptions import PermissionDenied
-from django.contrib import messages
+
 
 class ViagemUpdateView(SupervisorRequiredMixin, View):
     template_name = "core/viagem_form.html"
@@ -305,7 +296,6 @@ class ViagemUpdateView(SupervisorRequiredMixin, View):
         if viagem.status != "andamento":
             raise PermissionDenied("Viagem finalizada não pode ser editada.")
  
-        # Pré-preenche data_saida com o valor atual da viagem
         form = ViagemForm(initial={
             "responsavel": viagem.responsavel,
             "mochila":     viagem.mochila,
@@ -407,7 +397,7 @@ class ViagemCreateView(SupervisorRequiredMixin, View):
                 responsavel=form.cleaned_data["responsavel"],
                 lojas=lojas,
                 mochila=form.cleaned_data["mochila"],
-                data_saida=form.cleaned_data["data_saida"],   # ← novo
+                data_saida=form.cleaned_data["data_saida"],   
             )
         except DomainError as e:
             messages.error(request, str(e))
@@ -432,8 +422,6 @@ class ViagemCreateView(SupervisorRequiredMixin, View):
             "lojas_disponiveis": Loja.objects.order_by("nome"),
         }
 
-
-# Substitua apenas o método post de FinalizarViagemView no seu views.py
 
 @method_decorator(require_POST, name="dispatch")
 class FinalizarViagemView(SupervisorRequiredMixin, View):
@@ -670,7 +658,7 @@ class ItemDeleteView(SupervisorRequiredMixin, View):
 # LOJAS
 # ──────────────────────────────────────────────
 
-from django.db.models import Count, Q
+
 
 class LojaListView(LoginRequiredMixin, ListView):
     model = Loja
@@ -745,8 +733,6 @@ class LojaDeleteView(SupervisorRequiredMixin, View):
 # USUÁRIOS
 # ══════════════════════════════════════════════
 
-from django.db.models import Q
-
 class UsuarioListView(UsuarioAreaMixin, ListView):
     model = User
     template_name = "core/usuario_list.html"
@@ -761,7 +747,7 @@ class UsuarioListView(UsuarioAreaMixin, ListView):
             .prefetch_related("groups", "password_policy")
         )
 
-        # 🔒 Supervisor não vê admin
+        # Supervisor não vê admin
         if perms.is_supervisor(user):
             qs = qs.exclude(
                 Q(is_superuser=True) |
@@ -798,8 +784,6 @@ class UsuarioListView(UsuarioAreaMixin, ListView):
 class UsuarioCreateView(UsuarioAreaMixin, View):
     """
     UsuarioAreaMixin garante que apenas Admin/Supervisor chegam aqui.
-    A verificação de nível específico (pode criar admin?) é contexto fino
-    que depende do valor submetido no form — permanece na view.
     """
     template_name = "core/usuario_form.html"
 
@@ -818,7 +802,6 @@ class UsuarioCreateView(UsuarioAreaMixin, View):
         form  = UsuarioCreateForm(request.POST)
         nivel = request.POST.get("nivel", "usuario")
 
-        # Contexto fino: mixin garante acesso à área, mas não o nível específico
         if not perms.pode_criar_usuario(request.user, nivel):
             messages.error(request, "Você não tem permissão para criar um usuário com este nível.")
             form = self._filtrar_nivel_choices(form, request.user)
@@ -851,7 +834,6 @@ class UsuarioEditView(UsuarioAreaMixin, View):
     """
     UsuarioAreaMixin garante acesso à área.
     A verificação de pode_editar_usuario depende do objeto alvo e do nível
-    solicitado — é object-level, permanece na view.
     """
     template_name = "core/usuario_form.html"
 

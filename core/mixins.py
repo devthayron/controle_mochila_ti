@@ -52,7 +52,7 @@ class UsuarioAreaMixin(LoginRequiredMixin):
 class AdminRequiredMixin(LoginRequiredMixin):
     """
     Somente Admin.
-    Cobre: reset de senha, exclusão de usuários.
+    exclusão de usuários.
     """
 
     def dispatch(self, request, *args, **kwargs):

@@ -10,7 +10,7 @@ BLOCOS:
     3. ENGINE      — dispatcher central (has_perm) + _POLICY_MAP
     4. CONTEXT     — user_perms para templates
 
-CONTRATOS:
+REGRAS GERAIS:
     - Templates NÃO chamam has_perm diretamente
     - Templates NÃO contêm lógica de role
     - Views NÃO duplicam regras de policies
@@ -114,7 +114,7 @@ class Perm:
 # Regras:
 #   - NÃO contém lógica de domínio
 #   - NÃO decide diretamente nada
-#   - Deve ser previsível, pequeno, só dispatcher
+#   - Apenas chama a policy correspondente e retorna seu resultado
 #
 # NOTA: _Policies é importado de policies.py APÓS a definição dos roles
 #       para evitar import circular.
@@ -229,7 +229,7 @@ def permission_context(request) -> dict:
     Context processor global.
     Registrado em settings.py → TEMPLATES → context_processors.
 
-    Defensivo por design:
+    Regras de segurança:
     - Verifica hasattr antes de acessar request.user
     - Verifica is_authenticated antes de qualquer acesso ao banco
     - Nunca lança exceção — retorna contexto vazio em qualquer caso de erro

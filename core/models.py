@@ -152,11 +152,6 @@ class MochilaItem(models.Model):
 # VIAGEM
 # ─────────────────────────────────────────────
 
-
-# ─────────────────────────────────────────────
-# VIAGEM LOJA (tabela intermediária)
-# ─────────────────────────────────────────────
-
 class ViagemLoja(models.Model):
     """
     Tabela intermediária entre Viagem e Loja.
@@ -188,10 +183,6 @@ class ViagemLoja(models.Model):
         return f"{self.loja.nome} — Viagem #{self.viagem_id}"
 
 
-# ─────────────────────────────────────────────
-# VIAGEM (atualizada — sem FK direta para Loja)
-# ─────────────────────────────────────────────
-
 class Viagem(models.Model):
     STATUS_CHOICES = [
         ("andamento",  "Em andamento"),
@@ -201,7 +192,6 @@ class Viagem(models.Model):
     responsavel  = models.ForeignKey(User,    on_delete=models.PROTECT)
     mochila      = models.ForeignKey(Mochila, on_delete=models.PROTECT)
 
-    # Lojas agora via ViagemLoja (M2M com tabela intermediária)
     lojas = models.ManyToManyField(
         Loja,
         through="ViagemLoja",
@@ -242,7 +232,6 @@ class Viagem(models.Model):
             vl.loja.nome
             for vl in self.viagem_lojas.select_related("loja").order_by("ordem")
         )
-
 
 # ─────────────────────────────────────────────
 # CHECKLIST

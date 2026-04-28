@@ -217,7 +217,6 @@ class ViagemLojaInline(admin.TabularInline):
     ordering       = ["ordem"]
 
     def has_delete_permission(self, request, obj=None):
-        # Impede remover a última loja de uma viagem em andamento
         if obj and isinstance(obj, Viagem) and obj.status == "andamento":
             return obj.viagem_lojas.count() > 1
         return True

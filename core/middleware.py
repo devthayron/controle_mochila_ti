@@ -49,9 +49,7 @@ class ForcePasswordChangeMiddleware:
         if any(path.startswith(p) for p in _ALLOWED_PREFIXES):
             return False
 
-        # Verifica flag
         try:
             return user.password_policy.must_change_password
         except Exception:
-            # Se não há policy, não bloqueia (usuários legados)
             return False

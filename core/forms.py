@@ -2,8 +2,7 @@
 forms.py — Apenas validação de input HTTP.
 
 NOTA: Os querysets de Loja, Mochila e Item usam automaticamente
-o AtivoManager (filtra ativo=True), então não é necessário
-chamar .filter(ativo=True) explicitamente.
+o AtivoManager (filtra ativo=True), então não é necessário filtrar manualmente.
 """
 
 from django import forms

@@ -1,15 +1,5 @@
 """
 exceptions.py — Exceções de domínio padronizadas.
-
-Hierarquia:
-    DomainError (base)
-    ├── ItemEmUsoError
-    ├── MochilaEmUsoError
-    ├── LojaEmUsoError
-    ├── ViagemJaFinalizada
-    ├── MochilaInativaError
-    ├── MochilaVaziaError
-    └── SenhaFracaError
 """
 
 
